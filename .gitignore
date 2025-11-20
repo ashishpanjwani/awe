@@ -1,0 +1,82 @@
+# Flutter/Dart/Pub
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_export_environment.sh
+
+# Android
+**/android/local.properties
+**/android/.gradle/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/key.properties
+
+# iOS
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/.symlinks/
+**/ios/Pods/
+**/ios/Runner.xcworkspace/
+**/ios/Runner/Runner-Bridging-Header.h
+**/ios/build/
+
+# macOS
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+**/macos/build/
+
+# Windows
+**/windows/flutter/ephemeral/
+**/windows/build/
+
+# Linux
+**/linux/flutter/ephemeral/
+**/linux/build/
+
+# Web
+**/web/.dart_tool/
+
+# VSCode
+.vscode/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+
+# Generated files
+pubspec.lock
+app.*.map.json
+
+# Logs
+*.log
+
+# Others
+.DS_Store
+Thumbs.db
+
+# Firebase (Android & iOS)
+# Android: google-services.json
+**/android/app/google-services.json
+# iOS: GoogleService-Info.plist
+**/ios/Runner/GoogleService-Info.plist
+
+# Firebase admin / server keys
+serviceAccountKey.json
+**/firebase-adminsdk-*.json
+
+# Firebase CLI / local state
+.firebase/
+.firebaserc
+.firebase/*
+.firebase_token
+firebase-debug.log
+
+# Other local config files that may contain secrets
+.env
+.env.* 
