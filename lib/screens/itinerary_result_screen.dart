@@ -516,6 +516,13 @@ class _DayTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    String _cleanInline(String s) {
+      if (s.isEmpty) return s;
+      // Replace any newlines or carriage returns with single spaces and
+      // collapse repeated whitespace to avoid vertical text artifacts.
+      final noBreaks = s.replaceAll(RegExp(r"[\r\n]+"), ' ');
+      return noBreaks.replaceAll(RegExp(r"\s{2,}"), ' ').trim();
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       itemCount: (activities.length) + 1,
@@ -525,17 +532,25 @@ class _DayTimeline extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (title.isNotEmpty)
-                Text(title,
+                Text(_cleanInline(title),
                     style: GoogleFonts.raleway(
                         color: FlowColors.textLight,
                         fontWeight: FontWeight.w800,
                         fontSize: 18)),
               if (summary.isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text(summary,
-                    style: GoogleFonts.raleway(
-                        color: FlowColors.textGrey,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  _cleanInline(summary),
+                  style: GoogleFonts.raleway(
+                    color: FlowColors.textGrey,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45, // avoid fractional line rounding overflows
+                  ),
+                  textHeightBehavior: const TextHeightBehavior(
+                    applyHeightToFirstAscent: false,
+                    applyHeightToLastDescent: false,
+                  ),
+                ),
               ],
               const SizedBox(height: 12),
             ],
@@ -562,9 +577,14 @@ class _TimelineTileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tod = (activity['timeOfDay'] ?? '').toString();
-    final title = (activity['title'] ?? '').toString();
-    final location = (activity['location'] ?? '').toString();
-    final notes = (activity['notes'] ?? '').toString();
+    String _cleanInline(String s) {
+      if (s.isEmpty) return s;
+      final noBreaks = s.replaceAll(RegExp(r"[\r\n]+"), ' ');
+      return noBreaks.replaceAll(RegExp(r"\s{2,}"), ' ').trim();
+    }
+    final title = _cleanInline((activity['title'] ?? '').toString());
+    final location = _cleanInline((activity['location'] ?? '').toString());
+    final notes = _cleanInline((activity['notes'] ?? '').toString());
     final cost = (activity['cost'] ?? '').toString();
 
     return TimelineTile(
@@ -642,20 +662,36 @@ class _TimelineTileCard extends StatelessWidget {
                       size: 16, color: FlowColors.textGrey),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(location,
-                        style: GoogleFonts.raleway(
-                            color: FlowColors.textGrey,
-                            fontWeight: FontWeight.w700)),
+                    child: Text(
+                      location,
+                      style: GoogleFonts.raleway(
+                        color: FlowColors.textGrey,
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
+                      ),
+                      textHeightBehavior: const TextHeightBehavior(
+                        applyHeightToFirstAscent: false,
+                        applyHeightToLastDescent: false,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
             if (notes.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(notes,
-                  style: GoogleFonts.raleway(
-                      color: FlowColors.textLight,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                notes,
+                style: GoogleFonts.raleway(
+                  color: FlowColors.textLight,
+                  fontWeight: FontWeight.w600,
+                  height: 1.45, // reduce 1px overflow in some fonts/dpis
+                ),
+                textHeightBehavior: const TextHeightBehavior(
+                  applyHeightToFirstAscent: false,
+                  applyHeightToLastDescent: false,
+                ),
+              ),
             ],
           ],
         ),
@@ -709,9 +745,9 @@ class _TwoLineTitle extends StatelessWidget {
       children: [
         Text(
           title,
-          style: theme.textTheme.titleLarge?.copyWith(
+          style: theme.textTheme.titleMedium?.copyWith(
             color: FlowColors.textLight,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             fontSize: 18, // slightly smaller for more breathing room
           ),
         ),

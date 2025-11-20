@@ -71,6 +71,117 @@ class DestinationAIService {
     }
   }
 
+  /// Streams a friendly, readable "About" description for a destination.
+  /// Emits incremental plain-text chunks as they are produced by the model.
+  /// Consumers should append the chunks in order to build the full text.
+  Stream<String> generateRichDescriptionStream({
+    required String name,
+    required String country,
+    int? typicalDays,
+  }) async* {
+    final prompt = _buildPrompt(
+      name: name,
+      country: country,
+      typicalDays: typicalDays,
+    );
+    String lastAggregated = '';
+    // Try primary model; if the SDK yields snapshots with cumulative text, we compute deltas
+    try {
+      debugPrint('[DestinationAIService] Streaming description for $name, $country using $_modelName');
+      final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
+      final stream = model.generateContentStream(
+        [Content.text(prompt)],
+        generationConfig: GenerationConfig(
+          responseMimeType: 'text/plain',
+          temperature: 0.6,
+          maxOutputTokens: 512,
+        ),
+      );
+
+      await for (final event in stream) {
+        // Prefer event.text if available (many SDKs expose cumulative text)
+        String? cumulative = event.text;
+
+        if (cumulative == null || cumulative.trim().isEmpty) {
+          // Best-effort extraction from candidates/parts
+          try {
+            final dyn = event as dynamic;
+            final cands = dyn.candidates as List?;
+            if (cands != null && cands.isNotEmpty) {
+              final buffer = StringBuffer();
+              for (final c in cands) {
+                final content = (c as dynamic).content;
+                final parts = (content as dynamic).parts as List?;
+                if (parts == null) continue;
+                for (final p in parts) {
+                  final maybeText = (p as dynamic).text as String?;
+                  if (maybeText != null) buffer.write(maybeText);
+                }
+              }
+              final s = buffer.toString();
+              if (s.isNotEmpty) cumulative = s;
+            }
+          } catch (_) {
+            // ignore candidate parsing errors in stream
+          }
+        }
+
+        if (cumulative != null && cumulative.isNotEmpty) {
+          final cleaned = _stripFences(cumulative);
+          // Calculate the delta since last time
+          if (cleaned.length > lastAggregated.length) {
+            final delta = cleaned.substring(lastAggregated.length);
+            lastAggregated = cleaned;
+            if (delta.trim().isNotEmpty) yield delta;
+          }
+        }
+      }
+
+      // If nothing was yielded (e.g., stream ended quickly), try one non-stream call as a fallback
+      if (lastAggregated.trim().isEmpty) {
+        final fallback = await _tryGenerateText(
+          modelName: _modelName,
+          prompt: prompt,
+          temperature: 0.4,
+          maxTokens: 480,
+        );
+        if (fallback != null && fallback.trim().isNotEmpty) {
+          yield _stripFences(fallback).trim();
+        }
+      }
+    } catch (e, st) {
+      debugPrint('[DestinationAIService] generateRichDescriptionStream error: $e');
+      debugPrint('[DestinationAIService] stack: $st');
+      // As a last resort, try streaming with a fallback model in a simple loop
+      for (final m in _fallbackModels) {
+        try {
+          debugPrint('[DestinationAIService] Retry streaming with fallback model: ' + m);
+          final model = FirebaseAI.googleAI().generativeModel(model: m);
+          final stream = model.generateContentStream(
+            [Content.text(prompt)],
+            generationConfig: GenerationConfig(
+              responseMimeType: 'text/plain',
+              temperature: 0.2,
+            ),
+          );
+          await for (final event in stream) {
+            final t = event.text;
+            if (t == null || t.isEmpty) continue;
+            final cleaned = _stripFences(t);
+            if (cleaned.length > lastAggregated.length) {
+              final delta = cleaned.substring(lastAggregated.length);
+              lastAggregated = cleaned;
+              if (delta.trim().isNotEmpty) yield delta;
+            }
+          }
+          break; // streamed successfully on a fallback
+        } catch (_) {
+          // try next fallback
+        }
+      }
+    }
+  }
+
   Future<String?> _tryGenerateText({
     required String modelName,
     required String prompt,

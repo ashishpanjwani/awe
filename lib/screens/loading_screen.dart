@@ -5,10 +5,20 @@ import 'package:lottie/lottie.dart';
 import 'package:wanderwell/theme.dart';
 
 class LoadingScreen extends StatefulWidget {
-  const LoadingScreen({super.key, this.generateTask});
+  const LoadingScreen({
+    super.key,
+    this.generateTask,
+    this.progressStream,
+    this.initialProgressText,
+  });
 
   // Optional generation future passed from the Builder screen.
   final Future<Map<String, dynamic>>? generateTask;
+  // Optional progress stream to show live agentic steps.
+  final Stream<String>? progressStream;
+  // Initial progress line to render immediately (prevents missing the first event
+  // if the stream subscriber attaches slightly later after navigation).
+  final String? initialProgressText;
 
   @override
   State<LoadingScreen> createState() => _LoadingScreenState();
@@ -26,6 +36,8 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   int _index = 0;
   Timer? _timer;
+  StreamSubscription<String>? _sub;
+  String? _liveLine;
 
   @override
   void initState() {
@@ -34,8 +46,25 @@ class _LoadingScreenState extends State<LoadingScreen>
     // rotate artwork and lines every 1 second per request
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
+      // If we have live progress from the generator, keep showing it and
+      // still tick the index for AnimatedSwitcher keys, but do not change
+      // the displayed phrase.
       setState(() => _index = (_index + 1) % _lines.length);
     });
+
+    // Prime the line with the initial text if provided.
+    if (widget.initialProgressText != null &&
+        widget.initialProgressText!.trim().isNotEmpty) {
+      _liveLine = widget.initialProgressText;
+    }
+
+    // Subscribe to progress stream if provided.
+    if (widget.progressStream != null) {
+      _sub = widget.progressStream!.listen((msg) {
+        if (!mounted) return;
+        setState(() => _liveLine = msg);
+      });
+    }
 
     // Kick off the generation if provided.
     final task = widget.generateTask;
@@ -61,6 +90,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   @override
   void dispose() {
     _timer?.cancel();
+    _sub?.cancel();
     super.dispose();
   }
 
@@ -94,8 +124,10 @@ class _LoadingScreenState extends State<LoadingScreen>
                   );
                 },
                 child: Text(
-                  _lines[_index],
-                  key: ValueKey<int>(_index),
+                  _liveLine ?? _lines[_index],
+                  // Key by the actual text so the switcher updates immediately
+                  // when the live progress line changes.
+                  key: ValueKey<String>(_liveLine ?? _lines[_index]),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:math' as math;
 import 'package:wanderwell/models/destination.dart';
 import 'package:wanderwell/services/destination_ai_service.dart';
 
@@ -283,6 +284,71 @@ class DestinationService {
       debugPrint('DestinationService enrichDescriptionWithAI error: $e');
       debugPrint('$st');
       return null;
+    }
+  }
+
+  /// Streams a richer description via Gemini and emits incremental chunks.
+  /// The accumulated final text will be persisted to Firestore if it
+  /// meaningfully improves upon the current description.
+  Stream<String> streamEnrichedDescription(Destination destination) async* {
+    final ai = DestinationAIService();
+    final buffer = StringBuffer();
+    try {
+      debugPrint('[DestinationService] Streaming enrichment for ${destination.name} (${destination.country})');
+      await for (final chunk in ai.generateRichDescriptionStream(
+        name: destination.name,
+        country: destination.country,
+        typicalDays: destination.idealDays,
+      )) {
+        buffer.write(chunk);
+        yield chunk; // pass incremental updates to UI
+      }
+    } catch (e, st) {
+      debugPrint('DestinationService streamEnrichedDescription error: $e');
+      debugPrint('$st');
+      rethrow;
+    } finally {
+      // Persist at the end if improved
+      try {
+        final generated = buffer.toString().trim();
+        final current = destination.description.trim();
+        final shouldPersist = generated.isNotEmpty && (current.isEmpty || generated.length >= (current.length + 60));
+        if (shouldPersist) {
+          debugPrint('[DestinationService] Persisting streamed description for ${destination.id}; newLen=${generated.length}, oldLen=${current.length}');
+          await _firestore.collection('destinations').doc(destination.id).set({
+            'description': generated,
+            'updatedAt': Timestamp.fromDate(DateTime.now()),
+          }, SetOptions(merge: true));
+        }
+      } catch (e, st) {
+        debugPrint('DestinationService persist (stream) failed: $e');
+        debugPrint('$st');
+      }
+    }
+  }
+
+  /// Emits a realistic, readable stream from a final text by chunking words.
+  /// This is used on web where SDK streaming can be unreliable; it creates
+  /// the same progressive experience without risking empty streams.
+  Stream<String> pseudoStreamFromFullText(
+    String fullText, {
+    int wordsPerChunk = 22,
+    int jitterMs = 30,
+    int baseDelayMs = 40,
+  }) async* {
+    final words = fullText.split(RegExp(r'\s+'));
+    final rand = math.Random();
+    int i = 0;
+    while (i < words.length) {
+      final end = (i + wordsPerChunk).clamp(0, words.length);
+      final chunk = words.sublist(i, end).join(' ');
+      if (chunk.isNotEmpty) {
+        yield (i == 0 ? '' : ' ') + chunk;
+      }
+      i = end;
+      // short, slightly jittered delay to feel live
+      final d = baseDelayMs + rand.nextInt(jitterMs);
+      await Future.delayed(Duration(milliseconds: d));
     }
   }
 }

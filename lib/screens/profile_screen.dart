@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:wanderwell/services/auth_service.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:wanderwell/bloc/auth_cubit.dart';
 import 'package:wanderwell/services/quest_service.dart';
 import 'package:wanderwell/screens/welcome_screen.dart';
 import 'package:wanderwell/theme.dart';
-import 'package:wanderwell/widgets/cta_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,18 +14,10 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   int _completedQuests = 0;
   int _completedMicros = 0;
-  String _version = "";
-
   @override
   void initState() {
     super.initState();
     _loadStats();
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    final info = await PackageInfo.fromPlatform();
-    setState(() => _version = "${info.version}+${info.buildNumber}");
   }
 
   Future<void> _loadStats() async {
@@ -54,11 +42,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: FlowColors.primaryDark,
       appBar: AppBar(
         backgroundColor: FlowColors.primaryDark,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () => Navigator.of(context).pushNamed('/settings'),
+            icon: const Icon(Icons.settings, color: Colors.white),
+          ),
+        ],
       ),
 
       // ---- BODY (fully scrollable) ----
@@ -66,239 +63,139 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: Column(
           children: [
-                  // Avatar
-                  CircleAvatar(
-                    radius: 46,
-                    backgroundColor: FlowColors.chipSelectedDark,
-                    backgroundImage: (user?.photoUrl?.isNotEmpty ?? false)
-                        ? NetworkImage(user!.photoUrl!)
-                        : null,
-                    child: (user?.photoUrl?.isNotEmpty ?? false)
-                        ? null
-                        : const Icon(Icons.person,
-                            color: Colors.white, size: 44),
-                  ),
+            // Avatar
+            CircleAvatar(
+              radius: 46,
+              backgroundColor: FlowColors.chipSelectedDark,
+              backgroundImage: (user?.photoUrl?.isNotEmpty ?? false)
+                  ? NetworkImage(user!.photoUrl!)
+                  : null,
+              child: (user?.photoUrl?.isNotEmpty ?? false)
+                  ? null
+                  : const Icon(Icons.person, color: Colors.white, size: 44),
+            ),
 
-                  const SizedBox(height: 14),
+            const SizedBox(height: 14),
 
-                  // Name
-                  Text(
-                    user?.name ?? "Guest",
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+            // Name
+            Text(
+              user?.name ?? "Guest",
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
 
-                  const SizedBox(height: 6),
+            const SizedBox(height: 6),
 
-                  // Joined On
-                  Text(
-                    user?.createdAt != null
-                        ? "Joined in ${_formatJoinDate(user!.createdAt)}"
-                        : (user?.email ?? "Not signed in"),
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: Colors.white70),
-                  ),
+            // Joined On
+            Text(
+              user?.createdAt != null
+                  ? "Joined in ${_formatJoinDate(user!.createdAt)}"
+                  : (user?.email ?? "Not signed in"),
+              style:
+                  theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
+            ),
 
-                  const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-                  // ---- STATS CARD ----
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text('Stats',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                              color: FlowColors.textLight,
-                              fontWeight: FontWeight.w700)),
-                    ),
+            // ---- STATS CARD ----
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text('Stats',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                        color: FlowColors.textLight,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+            SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: FlowColors.cardSurfaceDark,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.05),
+                ),
+              ),
+              child: Column(
+                children: [
+                  _statRow(
+                    icon: Icons.flag,
+                    label: "Completed Quests",
+                    value: "$_completedQuests",
+                    iconColor: FlowColors.accentAmber,
                   ),
-                  SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: FlowColors.cardSurfaceDark,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.05),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        _statRow(
-                          icon: Icons.flag,
-                          label: "Completed Quests",
-                          value: "$_completedQuests",
-                          iconColor: FlowColors.accentAmber,
-                        ),
-                        const SizedBox(height: 16),
-                        _statRow(
-                          icon: Icons.bolt,
-                          label: "Micro Adventures",
-                          value: "$_completedMicros",
-                          iconColor: FlowColors.softTeal,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-                  // Saved Itineraries entry
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text('Library',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                              color: FlowColors.textLight,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () => Navigator.of(context).pushNamed('/saved_itineraries'),
-                    borderRadius: BorderRadius.circular(16),
-                    child: Ink(
-                      decoration: BoxDecoration(
-                        color: FlowColors.cardSurfaceDark,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.05)),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: FlowColors.chipSelectedDark,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.bookmark, color: Colors.white70),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Saved Itineraries',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right, color: Colors.white60),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ---- LEGAL ----
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text('Legal',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                              color: FlowColors.textLight,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _legalTile(
-                    context,
-                    icon: Icons.privacy_tip_outlined,
-                    label: 'Privacy Policy',
-                    onTap: () {
-                      Navigator.of(context).pushNamed('/privacy');
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _legalTile(
-                    context,
-                    icon: Icons.article_outlined,
-                    label: 'Terms of Service',
-                    onTap: () {
-                      Navigator.of(context).pushNamed('/terms');
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ---- ACCOUNT ACTIONS ----
-                  SizedBox(
-                    width: double.infinity,
-                    child: AuthService().isLoggedIn
-                        ? CtaButton(
-                            label: 'Log Out',
-                            onPressed: () async {
-                              try {
-                                await context.read<AuthCubit>().signOut();
-                              } catch (_) {
-                                await AuthService().signOut();
-                              }
-                              if (!mounted) return;
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                    builder: (_) => const WelcomeScreen()),
-                                (route) => false,
-                              );
-                            },
-                          )
-                        : CtaButton(
-                            label: 'Sign in with Google',
-                            leadingIcon: Icons.login,
-                            onPressed: () async {
-                              try {
-                                await context
-                                    .read<AuthCubit>()
-                                    .signInWithGoogle();
-                              } catch (_) {
-                                await AuthService().signInWithGoogle();
-                              }
-                              if (!mounted) return;
-                              setState(() {});
-                              _loadStats();
-                            },
-                          ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (AuthService().isLoggedIn)
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton.icon(
-                        onPressed: () => _confirmDelete(context),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.redAccent,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Delete Account'),
-                      ),
-                    ),
-
                   const SizedBox(height: 16),
-                  Text(
-                    "Logged in as",
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.white60),
-                  ),
-                  Text(
-                    user?.email ?? 'Guest',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.white60),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "App version: $_version",
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: Colors.white38),
+                  _statRow(
+                    icon: Icons.bolt,
+                    label: "Micro Adventures",
+                    value: "$_completedMicros",
+                    iconColor: FlowColors.softTeal,
                   ),
                 ],
               ),
             ),
+
+            const SizedBox(height: 24),
+            // Saved Itineraries entry
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text('Collection',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                        color: FlowColors.textLight,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () =>
+                  Navigator.of(context).pushNamed('/saved_itineraries'),
+              borderRadius: BorderRadius.circular(16),
+              child: Ink(
+                decoration: BoxDecoration(
+                  color: FlowColors.cardSurfaceDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: FlowColors.chipSelectedDark,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child:
+                            const Icon(Icons.bookmark, color: Colors.white70),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Saved Itineraries',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.white60),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 
@@ -464,7 +361,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: FlowColors.cardSurfaceDark,
-        title: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+        title:
+            const Text('Delete Account', style: TextStyle(color: Colors.white)),
         content: const Text(
           'This will permanently delete your account. This action cannot be undone.',
           style: TextStyle(color: Colors.white70),

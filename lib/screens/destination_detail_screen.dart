@@ -158,28 +158,9 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                         buildWhen: (p, n) =>
                             p.description != n.description ||
                             p.loadingDescription != n.loadingDescription ||
-                            p.days != n.days,
+                            p.days != n.days ||
+                            p.aiStepIndex != n.aiStepIndex,
                         builder: (context, state) {
-                          if (state.loadingDescription) {
-                            return _Card(
-                              child: Row(
-                                children: [
-                                  const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(FlowColors.textLight),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text('Fetching details…',
-                                      style: GoogleFonts.raleway(color: FlowColors.textGrey)),
-                                ],
-                              ),
-                            );
-                          }
-
                           final aboutText = state.description.trim();
                           final paras = _splitIntoFriendlyParagraphs(aboutText);
 
@@ -192,25 +173,28 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                                   children: [
                                     const _SectionTitle(label: 'About'),
                                     const SizedBox(height: 8),
+                                    if (state.loadingDescription) ...[
+                                      AgenticSteps(currentStep: state.aiStepIndex),
+                                      const SizedBox(height: 12),
+                                    ],
                                     if (paras.isEmpty)
                                       Text(
-                                        'Details are on the way…',
+                                        state.loadingDescription ? 'Warming up the details…' : 'Details are on the way…',
                                         style: GoogleFonts.raleway(
                                             color: FlowColors.textGrey),
                                       )
-                                    else
-                                      ...[
-                                        for (int i = 0; i < paras.length; i++) ...[
-                                          Text(
-                                            paras[i],
-                                            style: GoogleFonts.raleway(
-                                                color: FlowColors.textLight,
-                                                height: 1.5),
-                                          ),
-                                          if (i != paras.length - 1)
-                                            const SizedBox(height: 8),
-                                        ]
-                                      ],
+                                    else ...[
+                                      for (int i = 0; i < paras.length; i++) ...[
+                                        Text(
+                                          paras[i],
+                                          style: GoogleFonts.raleway(
+                                              color: FlowColors.textLight,
+                                              height: 1.5),
+                                        ),
+                                        if (i != paras.length - 1)
+                                          const SizedBox(height: 8),
+                                      ]
+                                    ],
                                   ],
                                 ),
                               ),
@@ -780,6 +764,79 @@ class _TipRow extends StatelessWidget {
     );
   }
 }
+
+class AgenticSteps extends StatelessWidget {
+  final int currentStep; // 0..4 (4 means complete)
+  const AgenticSteps({super.key, required this.currentStep});
+
+  static const List<String> _steps = [
+    'Understanding the destination context',
+    'Pinpointing signature experiences and neighborhoods',
+    'Weaving details into a friendly, concise flow',
+    'Polishing for clarity and specificity',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(_steps.length, (i) {
+        final status = _stepStatus(i, currentStep);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              _statusIcon(status),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _steps[i],
+                  style: GoogleFonts.raleway(
+                    color: status == _StepStatus.pending
+                        ? FlowColors.textGrey
+                        : FlowColors.textLight,
+                    fontWeight: status == _StepStatus.active
+                        ? FontWeight.w700
+                        : FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  _StepStatus _stepStatus(int index, int current) {
+    if (current <= 0) return _StepStatus.pending;
+    if (index < current - 1) return _StepStatus.done;
+    if (index == current - 1 && current < 4) return _StepStatus.active;
+    if (current >= 4) return _StepStatus.done;
+    return _StepStatus.pending;
+  }
+
+  Widget _statusIcon(_StepStatus s) {
+    switch (s) {
+      case _StepStatus.done:
+        return const Icon(Icons.check_circle, size: 16, color: Colors.greenAccent);
+      case _StepStatus.active:
+        return const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(FlowColors.textLight),
+          ),
+        );
+      case _StepStatus.pending:
+      default:
+        return const Icon(Icons.radio_button_unchecked, size: 16, color: FlowColors.textGrey);
+    }
+  }
+}
+
+enum _StepStatus { pending, active, done }
 
 class _Chip extends StatelessWidget {
   final String text;

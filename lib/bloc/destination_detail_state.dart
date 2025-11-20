@@ -6,6 +6,7 @@ class DestinationDetailState extends Equatable {
   final String description;
   final bool loadingDescription;
   final bool generatingItinerary;
+  final int aiStepIndex; // 0 = not started
 
   const DestinationDetailState({
     required this.destination,
@@ -13,6 +14,7 @@ class DestinationDetailState extends Equatable {
     required this.description,
     required this.loadingDescription,
     required this.generatingItinerary,
+    required this.aiStepIndex,
   });
 
   DestinationDetailState copyWith({
@@ -21,6 +23,7 @@ class DestinationDetailState extends Equatable {
     String? description,
     bool? loadingDescription,
     bool? generatingItinerary,
+    int? aiStepIndex,
   }) {
     return DestinationDetailState(
       destination: destination ?? this.destination,
@@ -28,9 +31,10 @@ class DestinationDetailState extends Equatable {
       description: description ?? this.description,
       loadingDescription: loadingDescription ?? this.loadingDescription,
       generatingItinerary: generatingItinerary ?? this.generatingItinerary,
+      aiStepIndex: aiStepIndex ?? this.aiStepIndex,
     );
   }
 
   @override
-  List<Object?> get props => [destination.id, days, description, loadingDescription, generatingItinerary];
+  List<Object?> get props => [destination.id, days, description, loadingDescription, generatingItinerary, aiStepIndex];
 }

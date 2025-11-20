@@ -14,7 +14,8 @@ import 'package:wanderwell/screens/quest_screen.dart';
 import 'package:wanderwell/screens/profile_screen.dart';
 import 'package:wanderwell/screens/saved_itineraries_screen.dart';
 import 'package:wanderwell/screens/privacy_policy_screen.dart';
-import 'package:wanderwell/screens/terms_of_service_screen.dart';
+import 'package:wanderwell/screens/terms_and_conditions_screen.dart';
+import 'package:wanderwell/screens/settings_screen.dart';
 import 'package:wanderwell/services/auth_service.dart';
 import 'package:wanderwell/services/destination_service.dart';
 import 'package:wanderwell/services/feature_service.dart';
@@ -49,14 +50,16 @@ class FlowApp extends StatelessWidget {
           '/loading': (context) => const LoadingScreen(),
           '/itinerary_result': (context) {
             final args = ModalRoute.of(context)!.settings.arguments;
-            final map = (args is Map<String, dynamic>) ? args : <String, dynamic>{};
+            final map =
+                (args is Map<String, dynamic>) ? args : <String, dynamic>{};
             return ItineraryResultScreen(data: map);
           },
           '/quest': (context) => const QuestScreen(),
           '/profile': (context) => const ProfileScreen(),
           '/saved_itineraries': (context) => const SavedItinerariesScreen(),
           '/privacy': (context) => const PrivacyPolicyScreen(),
-          '/terms': (context) => const TermsOfServiceScreen(),
+          '/terms': (context) => const TermsAndConditionsScreen(),
+          '/settings': (context) => const SettingsScreen(),
         },
       ),
     );

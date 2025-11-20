@@ -12,12 +12,15 @@ class SavedItinerariesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = AuthService().currentUser;
+    final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: FlowColors.primaryDark,
       appBar: AppBar(
         backgroundColor: FlowColors.primaryDark,
         elevation: 0,
-        title: const Text('Saved Itineraries', style: TextStyle(color: Colors.white)),
+        title: Text('Saved Itineraries',
+            style: theme.textTheme.titleMedium?.copyWith(
+                color: FlowColors.textLight, fontWeight: FontWeight.w700)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -62,14 +65,16 @@ class _ItineraryListTile extends StatelessWidget {
         // Inject saved id into the payload so the result screen can show delete
         final payload = Map<String, dynamic>.from(it.data)
           ..['__savedId'] = it.id;
-        Navigator.of(context).pushNamed('/itinerary_result', arguments: payload);
+        Navigator.of(context)
+            .pushNamed('/itinerary_result', arguments: payload);
       },
       borderRadius: BorderRadius.circular(16),
       child: Ink(
         decoration: BoxDecoration(
           color: FlowColors.cardSurfaceDark,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
+          border: Border.all(
+              color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(14.0),
@@ -118,15 +123,30 @@ class _ItineraryListTile extends StatelessWidget {
   }
 
   String _isoToPretty(DateTime d) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
-  String _range(DateTime s, DateTime e) => '${_isoToPretty(s)} - ${_isoToPretty(e)}';
+  String _range(DateTime s, DateTime e) =>
+      '${_isoToPretty(s)} - ${_isoToPretty(e)}';
 
   int _days(DateTime s, DateTime e) => e.difference(s).inDays + 1;
 
-  String _defaultName() => '${it.destination} (${_range(it.startDate, it.endDate)})';
+  String _defaultName() =>
+      '${it.destination} (${_range(it.startDate, it.endDate)})';
 
   String _titleText() {
     // Prefer destination as concise title to avoid duplication with range-based names

@@ -51,7 +51,7 @@ class _QuestScreenState extends State<QuestScreen> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         centerTitle: true,
-        title: Text('Quest', style: theme.textTheme.titleLarge?.copyWith(color: FlowColors.textLight, fontWeight: FontWeight.w700)),
+        title: Text('Quest', style: theme.textTheme.titleMedium?.copyWith(color: FlowColors.textLight, fontWeight: FontWeight.w700)),
       ),
       body: _loading
           ? const _Loading()

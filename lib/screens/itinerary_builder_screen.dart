@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wanderwell/theme.dart';
@@ -32,7 +33,6 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
   // Travel style multi-select
   final List<_StyleOption> _styles = const [
     _StyleOption('Adventure', Icons.hiking, FlowColors.accentTeal),
-    _StyleOption('Solo', Icons.person_outline, FlowColors.accentAmber),
     _StyleOption('Foodie', Icons.restaurant_menu, FlowColors.accentOrange),
     _StyleOption('Culture', Icons.museum_outlined, FlowColors.accentGreen),
     _StyleOption('Romantic', Icons.favorite_border, FlowColors.accentBrown),
@@ -51,6 +51,23 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
     'Spontaneous'
   ];
   int _flexIndex = 1;
+
+  // Trip diversity / shape single-select
+  final List<String> _diversityOptions = const [
+    'Deep dive (1–2 bases)',
+    'Balanced (2–3 bases)',
+    'Wide & varied (3–5 bases)',
+  ];
+  int _diversityIndex = 1;
+
+  // Travel party (who's traveling)
+  final List<String> _partyOptions = const [
+    'Duo',
+    'Family',
+    'Friends',
+    'Solo',
+  ];
+  int _partyIndex = 0;
 
   // Dietary preference (optional)
   final List<String> _dietaryOptions = const [
@@ -114,10 +131,13 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
       body: _ItineraryScrollBody(
         destinationCard: _buildDestinationCard(),
         datesSection: _buildDatesSection(),
-        budgetSection: _buildAffordabilitySection(),
+        partySection: _buildPartySection(),
         travelStyleSection: _buildTravelStyleSection(),
+        budgetSection: _buildAffordabilitySection(),
         flexibilitySection: _buildFlexibilitySection(),
         dietarySection: _buildDietarySection(),
+        diversitySection: _buildDiversitySection(),
+        includeSection: _buildIncludeSection(),
       ),
       bottomNavigationBar: _buildBottomCTA(context),
     );
@@ -418,6 +438,31 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
     );
   }
 
+  Widget _buildPartySection() {
+    return _SectionCard(
+      title: 'Travel Party',
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: List.generate(_partyOptions.length, (i) {
+          final selected = _partyIndex == i;
+          final accent = switch (_partyOptions[i]) {
+            'Duo' => FlowColors.accentAmber,
+            'Family' => FlowColors.accentGreen,
+            'Friends' => FlowColors.accentTeal,
+            _ => FlowColors.accentOrange,
+          };
+          return _PillChip(
+            label: _partyOptions[i],
+            selected: selected,
+            accent: accent,
+            onTap: () => setState(() => _partyIndex = i),
+          );
+        }),
+      ),
+    );
+  }
+
   Widget _buildTravelStyleSection() {
     // Bring back expanded set of options (as earlier): 6 tiles
     final items = _styles;
@@ -457,7 +502,7 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
   }
 
   Widget _buildFlexibilitySection() {
-    return _SectionCard(
+    return _SectionBlock(
       title: 'Flexibility',
       child: Wrap(
         spacing: 10,
@@ -469,6 +514,25 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
             selected: selected,
             accent: FlowColors.accentGreen,
             onTap: () => setState(() => _flexIndex = i),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildDiversitySection() {
+    return _SectionBlock(
+      title: 'Trip Focus',
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: List.generate(_diversityOptions.length, (i) {
+          final selected = _diversityIndex == i;
+          return _PillChip(
+            label: _diversityOptions[i],
+            selected: selected,
+            accent: FlowColors.accentTeal,
+            onTap: () => setState(() => _diversityIndex = i),
           );
         }),
       ),
@@ -533,12 +597,14 @@ extension on _ItineraryBuilderScreenState {
     final affordability = _affordability[_affordabilityIndex];
     final styles = _selectedStyles.toList();
     final flexibility = _flexOptions[_flexIndex];
-
-    // Navigate to the enhanced loading screen and pass the task.
+    // Navigate to the loading screen with ONLY the rotating captions.
+    // We intentionally do not pass progress stream or custom text so the
+    // four fixed phrases are shown consistently across all stages.
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LoadingScreen(
-          generateTask: _generate(dest, affordability, styles, flexibility),
+          generateTask:
+              _generate(dest, affordability, styles, flexibility, null),
         ),
       ),
     );
@@ -549,19 +615,96 @@ extension on _ItineraryBuilderScreenState {
     String affordability,
     List<String> styles,
     String flexibility,
+    StreamController<String>? progress,
   ) async {
     final ai = ItineraryAIService();
-    return ai.generateItinerary(
+    final diversity = switch (_diversityIndex) {
+      0 => 'deep_dive',
+      2 => 'wide',
+      _ => 'balanced',
+    };
+    final party = _partyOptions[_partyIndex];
+    final travelers = switch (party) {
+      'Solo' => 1,
+      'Duo' => 2,
+      'Friends' => 3,
+      'Family' => 4,
+      _ => 2,
+    };
+    return ai.generateItineraryArchitectBuilders(
       destination: dest,
       startDate: _startDate!,
       endDate: _endDate!,
       affordability: affordability,
       travelStyles: styles,
       flexibility: flexibility,
+      travelParty: party,
+      travelers: travelers,
       dietaryPreference: _dietaryOptions[_dietaryIndex] == 'No preference'
           ? null
           : _dietaryOptions[_dietaryIndex],
+      diversityPreference: diversity,
+      // We still invoke progress callback for logs/analytics if provided,
+      // but the LoadingScreen no longer displays these lines.
+      onProgress: (s) => progress?.add(s),
+      mustSee: _parseMustInclude(),
     );
+  }
+}
+
+// --- Include places (chips-like text input minimal) ---
+extension _IncludePlaces on _ItineraryBuilderScreenState {
+  static final TextEditingController _includeCtrl = TextEditingController();
+
+  Widget _buildIncludeSection() {
+    return _SectionCard(
+      title: 'Include Places (optional)',
+      child: TextField(
+        controller: _includeCtrl,
+        style: GoogleFonts.raleway(
+          color: FlowColors.textLight,
+          fontWeight: FontWeight.w700,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Comma separated: e.g., Jeju, Seoul',
+          hintStyle: GoogleFonts.raleway(
+            color: FlowColors.textGrey,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(
+              color: FlowColors.cardBorderDark.withValues(alpha: 0.14),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(
+              color: FlowColors.cardBorderDark.withValues(alpha: 0.14),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: FlowColors.softTealLight),
+          ),
+          fillColor: FlowColors.cardSurfaceDark,
+          filled: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+      ),
+    );
+  }
+
+  List<String>? _parseMustInclude() {
+    final raw = _IncludePlaces._includeCtrl.text.trim();
+    if (raw.isEmpty) return null;
+    final parts = raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    return parts.isEmpty ? null : parts;
   }
 }
 
@@ -632,18 +775,24 @@ class _SectionCard extends StatelessWidget {
 class _ItineraryScrollBody extends StatefulWidget {
   final Widget destinationCard;
   final Widget datesSection;
+  final Widget partySection;
   final Widget budgetSection;
   final Widget travelStyleSection;
   final Widget flexibilitySection;
   final Widget dietarySection;
+  final Widget diversitySection;
+  final Widget includeSection;
 
   const _ItineraryScrollBody({
     required this.destinationCard,
     required this.datesSection,
+    required this.partySection,
     required this.budgetSection,
     required this.travelStyleSection,
     required this.flexibilitySection,
     required this.dietarySection,
+    required this.diversitySection,
+    required this.includeSection,
   });
 
   @override
@@ -830,29 +979,52 @@ class _ItineraryScrollBodyState extends State<_ItineraryScrollBody> {
               children: [
                 widget.destinationCard,
                 const SizedBox(height: 12),
-                // Waves Divider
+
+                // Dates Section
                 const _IllustratedDivider(height: 30),
                 const SizedBox(height: 12),
                 widget.datesSection,
                 const SizedBox(height: 12),
-                // Mountains between Dates and Affordability
+
+                // Travel Party Section
                 const _MountainsDivider(height: 34),
                 const SizedBox(height: 12),
-                widget.budgetSection,
+                widget.partySection,
                 const SizedBox(height: 12),
-                // Skyline between Affordability and Travel Style
+
+                // Travel Style Section
                 const _SkylineDivider(height: 34),
                 const SizedBox(height: 12),
                 widget.travelStyleSection,
                 const SizedBox(height: 12),
-                // Add a subtle wave again before Flexibility for rhythm
+
+                // Budget Section
                 const _IllustratedDivider(height: 30),
                 const SizedBox(height: 12),
-                widget.flexibilitySection,
-                // Mountains between Dates and Affordability
+                widget.budgetSection,
+                const SizedBox(height: 12),
+
+                // Flexibility Section
                 const _MountainsDivider(height: 34),
                 const SizedBox(height: 12),
+                widget.flexibilitySection,
+                const SizedBox(height: 12),
+
+                // Mountains between Flexibility and Dietary 
+                const _SkylineDivider(height: 34),
+                const SizedBox(height: 12),
                 widget.dietarySection,
+                const SizedBox(height: 12),
+
+                // Mountains between Dates and Affordability
+                const _IllustratedDivider(height: 30),
+                const SizedBox(height: 12),
+                widget.diversitySection,
+                const SizedBox(height: 12),
+
+                const _MountainsDivider(height: 34),
+                const SizedBox(height: 12),
+                widget.includeSection,
                 const SizedBox(height: 24),
               ],
             ),
