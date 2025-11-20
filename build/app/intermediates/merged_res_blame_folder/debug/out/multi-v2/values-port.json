@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.flow.app-mergeDebugResources-48:/values-port/values-port.xml",
+            "map": [
+                {
+                    "source": "/Users/ashish/.gradle/caches/8.12/transforms/cdb65ed4a1bd87727c944daf5f0bfba5/transformed/appcompat-1.1.0/res/values-port/values-port.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "55",
+                        "endOffsets": "106"
+                    }
+                }
+            ]
+        }
+    ]
+}

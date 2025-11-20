@@ -1,0 +1,4 @@
+#Wed Nov 19 18:00:09 IST 2025
+base.0=/Users/ashish/development/code/flutter_practice/wanderwell/build/app/intermediates/dex/release/minifyReleaseWithR8/classes.dex
+renamed.0=classes.dex
+path.0=classes.dex

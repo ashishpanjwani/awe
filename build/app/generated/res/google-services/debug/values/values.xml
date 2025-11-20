@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="default_web_client_id" translatable="false">244656743763-b50kt0rt8kaveq3kf587rlgnl5h1n3aa.apps.googleusercontent.com</string>
+    <string name="gcm_defaultSenderId" translatable="false">244656743763</string>
+    <string name="google_api_key" translatable="false">AIzaSyA_3c5NTIqyrxdbYPfYymm-RYlkKA3zPKA</string>
+    <string name="google_app_id" translatable="false">1:244656743763:android:788af62cc31ad3bb20eda6</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyA_3c5NTIqyrxdbYPfYymm-RYlkKA3zPKA</string>
+    <string name="google_storage_bucket" translatable="false">flow-2538d.firebasestorage.app</string>
+    <string name="project_id" translatable="false">flow-2538d</string>
+</resources>

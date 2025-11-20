@@ -1,0 +1,49 @@
+name: wanderwell
+description: "Flow is your serene travel companion, guiding you from a warm welcome to personalized itineraries and popular destinations, all within a beautifully designed dark travel theme."
+publish_to: "none"
+version: 1.0.0
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter_bloc: ^9.0.0
+  dio: ^5.0.0
+  timeline_tile: ^2.0.0
+  firebase_ai: ^3.0.0
+  geolocator: 13.0.4
+  flutter_typeahead: ^5.0.0
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.1.0
+  google_sign_in: ^6.2.1
+  shared_preferences: ^2.0.0
+  firebase_core: '>=2.21.1'
+  cloud_firestore: '>=5.5.0'
+  firebase_auth: '>=5.3.3'
+  equatable: ^2.0.7
+  package_info_plus: ^8.3.0
+  lottie: ^3.3.1
+  flutter_staggered_grid_view: 0.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+    - assets/images/
+    - assets/animations/
+    - assets/icons/
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icons/awe_foreground.png
+  remove_alpha_ios: true

@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.flow.app-mergeReleaseResources-48:/values-hdpi-v4/values-hdpi-v4.xml",
+            "map": [
+                {
+                    "source": "/Users/ashish/.gradle/caches/8.12/transforms/cdb65ed4a1bd87727c944daf5f0bfba5/transformed/appcompat-1.1.0/res/values-hdpi-v4/values-hdpi-v4.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "6",
+                        "endColumns": "13",
+                        "endOffsets": "327"
+                    }
+                }
+            ]
+        }
+    ]
+}
