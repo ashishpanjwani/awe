@@ -37,6 +37,7 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
     _StyleOption('Culture', Icons.museum_outlined, FlowColors.accentGreen),
     _StyleOption('Romantic', Icons.favorite_border, FlowColors.accentBrown),
     _StyleOption('Nature', Icons.park_outlined, FlowColors.accentTeal),
+    _StyleOption('Nightlife', Icons.local_bar, FlowColors.vibrantViolet),
   ];
   final Set<String> _selectedStyles = {'Adventure', 'Culture'};
 
@@ -44,25 +45,25 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
   final List<String> _affordability = const ['Budget', 'Moderate', 'Luxury'];
   int _affordabilityIndex = 1;
 
-  // Flexibility single-select
+  // Daily schedule pacing (formerly Flexibility)
   final List<String> _flexOptions = const [
     'Structured',
     'Balanced',
-    'Spontaneous'
+    'Relaxed',
   ];
   int _flexIndex = 1;
 
-  // Trip diversity / shape single-select
+  // Trip shape: how many stops
   final List<String> _diversityOptions = const [
-    'Deep dive (1–2 bases)',
-    'Balanced (2–3 bases)',
-    'Wide & varied (3–5 bases)',
+    'Stay mostly in one place',
+    'Visit 2–3 places',
+    'Visit 3–5 places',
   ];
   int _diversityIndex = 1;
 
   // Travel party (who's traveling)
   final List<String> _partyOptions = const [
-    'Duo',
+    'Couple',
     'Family',
     'Friends',
     'Solo',
@@ -447,7 +448,7 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
         children: List.generate(_partyOptions.length, (i) {
           final selected = _partyIndex == i;
           final accent = switch (_partyOptions[i]) {
-            'Duo' => FlowColors.accentAmber,
+            'Couple' => FlowColors.accentAmber,
             'Family' => FlowColors.accentGreen,
             'Friends' => FlowColors.accentTeal,
             _ => FlowColors.accentOrange,
@@ -503,26 +504,31 @@ class _ItineraryBuilderScreenState extends State<ItineraryBuilderScreen> {
 
   Widget _buildFlexibilitySection() {
     return _SectionBlock(
-      title: 'Flexibility',
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: List.generate(_flexOptions.length, (i) {
-          final selected = _flexIndex == i;
-          return _PillChip(
-            label: _flexOptions[i],
-            selected: selected,
-            accent: FlowColors.accentGreen,
-            onTap: () => setState(() => _flexIndex = i),
-          );
-        }),
+      title: 'Daily pace',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: List.generate(_flexOptions.length, (i) {
+              final selected = _flexIndex == i;
+              return _PillChip(
+                label: _flexOptions[i],
+                selected: selected,
+                accent: FlowColors.accentGreen,
+                onTap: () => setState(() => _flexIndex = i),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildDiversitySection() {
     return _SectionBlock(
-      title: 'Trip Focus',
+      title: 'How many stops?',
       child: Wrap(
         spacing: 10,
         runSpacing: 10,
@@ -626,7 +632,7 @@ extension on _ItineraryBuilderScreenState {
     final party = _partyOptions[_partyIndex];
     final travelers = switch (party) {
       'Solo' => 1,
-      'Duo' => 2,
+      'Couple' => 2,
       'Friends' => 3,
       'Family' => 4,
       _ => 2,

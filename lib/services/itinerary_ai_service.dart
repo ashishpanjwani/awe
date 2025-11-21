@@ -70,7 +70,7 @@ class ItineraryAIService {
     required List<String> travelStyles,
     required String flexibility,
     int travelers = 2,
-    String? travelParty, // Solo | Duo | Friends | Family (hints tone/constraints)
+    String? travelParty, // Solo | Couple | Friends | Family (hints tone/constraints)
     String pace = 'moderate',
     List<String>? mustSee,
     String? dietaryPreference,
@@ -147,6 +147,8 @@ class ItineraryAIService {
       for (int i = 0; i < segRanges.length; i++) {
         final seg = segRanges[i];
         final previousBase = i == 0 ? null : segRanges[i - 1].base;
+        final isFirstSegment = i == 0;
+        final isLastSegment = i == segRanges.length - 1;
         futures.add(semaphore.withPermit(() async {
             return _buildSegment(
             model: model,
@@ -161,6 +163,10 @@ class ItineraryAIService {
             dietaryPreference: dietaryPreference,
             segment: seg,
             previousBase: previousBase,
+            isFirstSegment: isFirstSegment,
+            isLastSegment: isLastSegment,
+            tripStartDate: startDate,
+            tripEndDate: endDate,
               seasonNote: _seasonNoteFor(destination, seg.start, seg.end),
           );
         }));
@@ -174,7 +180,19 @@ class ItineraryAIService {
         allDays.addAll(chunk);
       }
 
-      _harmonizeDays(allDays, segRanges);
+      // Enrich meals to ensure real, named venues (keeps previous improvements intact)
+      progress('Ensuring named restaurants/cafés (no generic placeholders)…');
+      await _ensureNamedVenues(
+        model: model,
+        destination: destination,
+        affordability: affordability,
+        dietaryPreference: dietaryPreference,
+        allDays: allDays,
+        segs: segRanges,
+      );
+
+      _harmonizeDays(destination, allDays, segRanges);
+      _injectArrivalDepartureIfMissing(destination, allDays, segRanges);
       final tips = _collectTips(allDays, destination);
 
       final result = <String, dynamic>{
@@ -245,6 +263,43 @@ class ItineraryAIService {
       }
     }();
 
+    // Compute hard segment count bounds based on trip length and diversity
+    int minSeg;
+    int maxSeg;
+    switch (diversityPreference) {
+      case 'deep_dive':
+        minSeg = 1;
+        maxSeg = totalDays <= 3 ? 1 : 2;
+        break;
+      case 'wide':
+        if (totalDays <= 4) {
+          minSeg = 2; // gateway + one base only on very short trips
+          maxSeg = 3;
+        } else if (totalDays <= 6) {
+          minSeg = 3;
+          maxSeg = 4;
+        } else if (totalDays <= 10) {
+          minSeg = 3;
+          maxSeg = 5;
+        } else {
+          minSeg = 4;
+          maxSeg = 6;
+        }
+        break;
+      default: // balanced
+        if (totalDays <= 3) {
+          minSeg = 1;
+          maxSeg = 2;
+        } else if (totalDays <= 6) {
+          minSeg = 2;
+          maxSeg = 3;
+        } else {
+          minSeg = 2;
+          maxSeg = 4;
+        }
+        break;
+    }
+
     final party = (travelParty ?? '').trim();
     final gatewayRule = _gatewayRuleFor(destination);
     return '''
@@ -257,21 +312,25 @@ Constraints:
 - Flexibility: $flexibility
 - Travelers: $travelers
 - Travel party: ${party.isEmpty ? 'Unspecified' : party} (influence suitability)
-- Pace: $pace
-- Must-see: $must
-- Dietary: $diet
-- Diversity preference: $diversityPreference. $diversityHint
+  - Pace: $pace
+  - Must-see: $must
+  - Dietary: $diet
+  - Diversity preference: $diversityPreference. $diversityHint
 - Season context: ${seasonNote ?? 'Use the actual trip dates to align with seasonal highlights, local festivals, and weather.'}
 
- Rules:
-- Propose 1 to 5 segments. Each segment has a distinct base city/region and focus theme.
-- Total dayCount across segments MUST equal $totalDays.
-- Ensure geographic diversity and avoid assigning all days to one city unless totalDays <= 2.
-- The base MUST be a real city/region in $destination suitable as a hub for that segment.
-- Order segments to minimize backtracking.
- - Entry/Exit sequencing (strict): $gatewayRule
- - Handling of "Must-see" (Include Places): Treat them as preferences, not guarantees. If they are too far apart or infeasible within $totalDays days, you MUST prune to a feasible subset and cluster around the chosen bases. Prefer to keep a sensible gateway and 1–2 nearby bases for short trips. Keep the flow robust rather than forced.
- - For very short trips (<= 4 days): Limit to gateway + at most one outlying base. Convert other must-see items into intra-day highlights or drop them.
+  Rules:
+  - Propose between $minSeg and $maxSeg segments (inclusive). Each segment has a distinct base city/region and focus theme.
+  - Total dayCount across segments MUST equal $totalDays.
+  - Ensure geographic diversity and avoid assigning all days to one city unless totalDays <= 2.
+  - The base MUST be a real city/region in $destination suitable as a hub for that segment.
+  - Order segments to minimize backtracking in a forward, sensible line.
+  - Prefer UNIQUE bases. Do NOT create multiple non-contiguous segments for the same base unless it is the final-night departure buffer and no alternate international gateway is viable.
+  - If an alternate international gateway near the final segment exists (e.g., secondary hub city), END THERE instead of returning to the first gateway.
+  - If a return to the initial gateway is unavoidable, allocate at most 1 day for the final segment and treat it as a light departure day (different neighborhood; no repeat of earlier highlights).
+  - Entry/Exit sequencing (strict): $gatewayRule
+  - Handling of "Must-see" (Include Places): Treat them as preferences, not guarantees. If they are too far apart or infeasible within $totalDays days, you MUST prune to a feasible subset and cluster around the chosen bases. Prefer to keep a sensible gateway and 1–2 nearby bases for short trips. Keep the flow robust rather than forced.
+  - For very short trips (<= 4 days): Limit to gateway + at most one outlying base. Convert other must-see items into intra-day highlights or drop them.
+  - Honor the diversity preference strictly: do NOT return fewer than $minSeg segments unless physically impossible; justify in meta.includePlaceDecisions if pruning reduces bases.
 
 JSON schema to output:
 {
@@ -306,6 +365,10 @@ JSON schema to output:
     required _Segment segment,
     String? previousBase,
     String? seasonNote,
+    required bool isFirstSegment,
+    required bool isLastSegment,
+    required DateTime tripStartDate,
+    required DateTime tripEndDate,
   }) async {
     final styles = travelStyles.isEmpty ? 'General' : travelStyles.join(', ');
     final must = (mustSee == null || mustSee.isEmpty) ? 'None' : mustSee.join(', ');
@@ -332,38 +395,57 @@ Segment:
 - Focus: ${segment.focus}
 - Dates: ${dates.join(', ')} (one object per date in this exact order)
 
-Constraints:
+ Constraints:
 - Budget: $affordability; Pace: $pace; Flexibility: $flexibility; Travelers: $travelers
-- Travel party: ${party.isEmpty ? 'Unspecified' : party}. Adjust suitability (e.g., family-friendly picks if Family; social/nightlife options if Friends; romantic if Duo; safe solo-friendly flows if Solo).
+  - Travel party: ${party.isEmpty ? 'Unspecified' : party}. Adjust suitability (e.g., family-friendly picks if Family; social/nightlife options if Friends; romantic if Couple; safe solo-friendly flows if Solo).
 - Travel styles: $styles
 - Must-see: $must
 - Dietary: $diet (align restaurants; focus on specialties rather than repeating diet labels)
 - Stay strictly within base/nearby areas appropriate for "${segment.base}" and the focus.
-- Pick real, locally appropriate restaurants for breakfast, lunch, dinner.
+ - Pick real, named restaurants/cafés (discoverable on Google Maps) for breakfast, lunch, and dinner.
+ - STRICT: No generic placeholders like "local cafe", "street food area", "food court", "ramen shop", "seafood restaurant". Use specific proper names.
+ - For each meal, use a DIFFERENT venue name than any other day in this trip (no repeats across the itinerary).
 - Avoid options/alternatives. Provide a single cohesive flow per day.
 - Keep text concise and human-friendly.
 
-Title & locations & cost rules (strict):
+ Title & locations & cost rules (strict):
 - For each day.title, prefix with "${segment.base}: " then a short theme, e.g., "${segment.base}: Hidden alleys & hanok tea".
 - For each activity.location, DO NOT append the city name "${segment.base}". Use the venue or neighborhood only.
 - For each activity.cost, ONLY use a compact badge: Free (no charge) or double-dollar sign for paid.
-
-Transit rule:
-- If this is the first date in this segment and the previous segment base was "${previousBase ?? segment.base}", and that differs from "${segment.base}", include a morning activity for travel from "${previousBase ?? segment.base}" to "${segment.base}" with typical mode (e.g., KTX, express bus, short flight) and a concise duration. Breakfast may occur pre-departure, on board, or upon arrival.
+ - For meals: activity.title MUST be the venue name (proper noun). activity.location should be the neighborhood/district (e.g., "Gangnam"), NOT the city name.
+  
+  Transit rule (decisive, no vagueness):
+  - If this is the first date in this segment and the previous segment base was "${previousBase ?? segment.base}", and that differs from "${segment.base}": include ONE travel activity from "${previousBase ?? segment.base}" to "${segment.base}" with a realistic mode (high-speed rail/rail, coach, flight, or ferry as appropriate).
+  - You MUST choose a specific time-of-day slot for that travel activity: "morning", "midday", or "evening".
+  - Decision rules: prefer morning for long rail/flight legs to unlock afternoon time; use midday only for short hops when morning has a marquee activity; use evening for short transfers following a full day.
+  - Never write phrases like "depending on plans" or present undecided options. Decide the slot and integrate it into the day's flow.
+  - Never propose an overland route across open sea. If a sea crossing is required (e.g., islands), use flight or ferry.
 
  Seasonal & holiday alignment:
  - ${seasonNote ?? 'Align daily choices with the actual months (weather, daylight, seasonal events).'}
- - ${holidayNote ?? 'If any global or local festivals fall on these dates, include them appropriately.'}
+  - ${holidayNote ?? 'If any global or local festivals fall on these dates, include them appropriately.'}
+  - If seasonally relevant highlights exist for this destination and dates, INCLUDE at least one explicit seasonal highlight within the first 1–2 days of the relevant segment (e.g., spring blossoms/wildflowers; autumn foliage; winter snow activities where applicable; summer waterfronts/early-late outdoor slots).
 
  Travel-style specificity (important):
- - If styles include "Adventure": bias toward active experiences (mountain/ridge hikes, ski/snow sports in winter regions, canyoning/kayak, cycling). Ensure season-appropriate picks.
-  - For Japan and the Mt. Fuji area: only propose the Fuji summit climb in official season (typically Jul–Sep). Outside that window (e.g., Mar), prefer safe adventure alternatives: Fuji Five Lakes ridge hikes, Arakurayama Sengen Park climb, snowshoeing with a certified guide, lava tubes, or ice caves. Mention guiding requirements only briefly when applicable.
+  - If styles include "Adventure": bias toward active experiences (mountain/ridge hikes, ski/snow sports in winter regions, canyoning/kayak, cycling). Ensure season-appropriate picks.
+   - For prominent peaks anywhere: propose summit climbs only in official open season with proper safety. Outside that window, switch to safe alternatives (ridge viewpoints, guided hikes, caves/lava tubes, snowshoeing) and mention guiding briefly when relevant.
 
   Authentic, local experiences (safe & tasteful):
   - Tailor 1–2 activities to feel distinctly local per day when possible. Examples include: neighborhood food alleys, izakaya/ramen-yokocho strolls, morning fish markets, tea ceremonies, cooking classes, pottery/craft workshops, language-exchange meetups, community walks, flea markets, indie music gigs, traditional bathhouses (onsen/sento etiquette), themed cafes (e.g., maid, animal, anime) if culturally relevant.
   - Strict safety filter: absolutely avoid adult/sexualized content, escort/host services, fetish or NSFW themes. Themed cafes are acceptable but do NOT sexualize or imply adult content, and avoid them entirely for Family travel parties.
-  - Adjust by party: Family -> kid-safe museums/zoos/workshops/interactive exhibits; Solo -> social but safe mixers, walking tours, shared foodie tables; Friends -> nightlife/live music/casual bars (non-explicit); Duo -> scenic/romantic viewpoints, date-friendly dining.
+  - Adjust by party: Family -> kid-safe museums/zoos/workshops/interactive exhibits; Solo -> social but safe mixers, walking tours, shared foodie tables; Friends -> nightlife/live music/casual bars (non-explicit); Couple -> scenic/romantic viewpoints, date-friendly dining.
   - If styles include "Culture": include at least one interaction-oriented element (e.g., guided neighborhood walk with a local, short language exchange, community market conversation) kept respectful and brief.
+   - If styles include "Nightlife": add an evening slot on 1–3 nights focused on vibrant but tasteful nightlife (e.g., live music bars, craft cocktail bars, club district walks) aligned with the base city. Keep it safe and non-explicit.
+
+  Trip boundary rule (arrival/departure, strict):
+  - Is this the first segment of the whole trip? ${isFirstSegment ? 'YES' : 'NO'}
+  - Is this the last segment of the whole trip? ${isLastSegment ? 'YES' : 'NO'}
+  - If YES and this is the first calendar date (${_isoDate(tripStartDate)}), include ONE concise arrival item (airport/rail arrival + hotel transfer/check-in) at an appropriate slot (usually morning for long-haul). Keep the rest of the day light but meaningful; avoid heavy back-to-back marquee activities immediately after arrival.
+  - If YES and this is the final calendar date (${_isoDate(tripEndDate)}), include ONE concise departure item (transfer to airport/rail, buffer) at an appropriate slot (often afternoon/evening). Keep that day lighter and avoid late-night commitments.
+
+  Final-day and revisit logic:
+  - If the same base appears earlier in the trip, you MUST NOT repeat previously scheduled highlights, restaurants, or signature venues. Switch to a different neighborhood and new experiences.
+  - If returning to a previously visited base solely for departure, keep the day light (last-minute neighborhood stroll, light shopping, lunch) and include a departure buffer.
 
 JSON schema to output:
 {
@@ -520,7 +602,7 @@ JSON schema to output:
     return tips.take(5).toList();
   }
 
-  void _harmonizeDays(List<Map<String, dynamic>> allDays, List<_Segment> segs) {
+  void _harmonizeDays(String destination, List<Map<String, dynamic>> allDays, List<_Segment> segs) {
     String baseForDate(String iso) {
       final d = DateTime.tryParse(iso);
       if (d == null) return '';
@@ -600,11 +682,12 @@ JSON schema to output:
         if (prevIndex >= 0) {
           final prevBase = segs[prevIndex].base;
           if (!_hasTransit(acts)) {
+            final note = _transitNoteFor(destination, prevBase, seg.base);
             acts.insert(0, {
               'timeOfDay': 'morning',
               'title': 'Travel to ' + seg.base,
               'location': 'From ' + prevBase,
-              'notes': 'Typical route: fast train or coach; start early to maximize time.',
+              'notes': note,
               'cost': _paidBadge,
             });
             day['activities'] = acts;
@@ -612,6 +695,259 @@ JSON schema to output:
         }
       }
     }
+  }
+
+  // Ensure explicit arrival on day 1 and departure on the last day if the model omitted them.
+  void _injectArrivalDepartureIfMissing(
+      String destination,
+      List<Map<String, dynamic>> allDays,
+      List<_Segment> segs,
+      ) {
+    if (allDays.isEmpty) return;
+
+    bool _containsKeyword(List<Map<String, dynamic>> acts, List<String> keys) {
+      for (final a in acts) {
+        final t = (a['title'] ?? '').toString().toLowerCase();
+        final n = (a['notes'] ?? '').toString().toLowerCase();
+        for (final k in keys) {
+          if (t.contains(k) || n.contains(k)) return true;
+        }
+      }
+      return false;
+    }
+
+    // Arrival on first day
+    final first = allDays.first;
+    final firstActs = (first['activities'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+    final firstDate = (first['date'] ?? '').toString();
+    final firstSeg = segs.firstWhere(
+      (s) => _isoDate(s.start) == firstDate,
+      orElse: () => segs.first,
+    );
+    if (!_containsKeyword(firstActs, ['arrival', 'arrive', 'airport', 'check-in', 'check in'])) {
+      firstActs.insert(0, {
+        'timeOfDay': 'morning',
+        'title': 'Arrival and hotel transfer',
+        'location': 'Airport ↔ Hotel',
+        'notes': 'Arrive in ' + firstSeg.base + '; transfer to accommodation, check-in or bag drop, short orientation stroll.',
+        'cost': _paidBadge,
+      });
+      first['activities'] = firstActs;
+    }
+
+    // Departure on last day
+    final last = allDays.last;
+    final lastActs = (last['activities'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+    if (!_containsKeyword(lastActs, ['depart', 'departure', 'airport', 'flight', 'train', 'check-out', 'checkout'])) {
+      lastActs.add({
+        'timeOfDay': 'evening',
+        'title': 'Departure flight/train',
+        'location': 'Hotel → Airport/Station',
+        'notes': 'Head to the gateway for your departure; allow buffer for transit and security.',
+        'cost': _paidBadge,
+      });
+      last['activities'] = lastActs;
+    }
+  }
+
+  // Replace generic meal placeholders with real, named venues using a light repair prompt.
+  Future<void> _ensureNamedVenues({
+    required GenerativeModel model,
+    required String destination,
+    required String affordability,
+    required String? dietaryPreference,
+    required List<Map<String, dynamic>> allDays,
+    required List<_Segment> segs,
+  }) async {
+    if (allDays.isEmpty) return;
+
+    String baseForDate(String iso) {
+      final d = DateTime.tryParse(iso);
+      if (d == null) return '';
+      for (final s in segs) {
+        if (!d.isBefore(s.start) && !d.isAfter(s.end)) return s.base;
+      }
+      return '';
+    }
+
+    bool isMeal(String tod) {
+      final t = tod.toLowerCase();
+      return t == 'breakfast' || t == 'lunch' || t == 'dinner';
+    }
+
+    bool isGenericTitle(String title) {
+      if (title.trim().isEmpty) return true;
+      final low = title.toLowerCase();
+      // Likely-generic telltales
+      const genericTokens = [
+        'restaurant', 'cafe', 'coffee shop', 'local', 'street food', 'food court',
+        'eatery', 'diner', 'breakfast', 'lunch', 'dinner', 'market', 'stall', 'canteen'
+      ];
+      if (genericTokens.any((t) => low.contains(t))) return true;
+      // If it's too short and a single word, probably not a proper venue (risk false negatives for e.g., "Ichiran", but we prefer repair)
+      if (!title.contains(' ') && title.length <= 4) return true;
+      return false;
+    }
+
+    // Gather already used venue names to avoid repeats across the trip
+    final used = <String>{};
+    for (final day in allDays) {
+      final acts = (day['activities'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+      for (final a in acts) {
+        final tod = (a['timeOfDay'] ?? '').toString();
+        if (isMeal(tod)) {
+          final title = (a['title'] ?? '').toString().trim();
+          if (title.isNotEmpty) used.add(title.toLowerCase());
+        }
+      }
+    }
+
+    Future<void> repairDay(int index) async {
+      final day = allDays[index];
+      final iso = (day['date'] ?? '').toString();
+      final base = baseForDate(iso);
+      final activities = (day['activities'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+      if (activities.isEmpty) return;
+
+      bool needsRepair = false;
+      for (final a in activities) {
+        final tod = (a['timeOfDay'] ?? '').toString();
+        if (isMeal(tod)) {
+          final title = (a['title'] ?? '').toString();
+          if (isGenericTitle(title)) { needsRepair = true; break; }
+        }
+      }
+      if (!needsRepair) return;
+
+      final budget = affordability;
+      final diet = (dietaryPreference == null || dietaryPreference.trim().isEmpty) ? 'None' : dietaryPreference.trim();
+
+      final inputDay = jsonEncode({
+        'date': day['date'],
+        'title': day['title'],
+        'summary': day['summary'],
+        'activities': activities,
+      });
+      final usedNamesList = used.toList();
+
+      final prompt = '''
+System: You are a meticulous fixer. You will receive one day object from an itinerary.
+Task: Replace ONLY the meal entries (timeOfDay is "breakfast", "lunch", or "dinner") that are generic with REAL, NAMED restaurants/cafés in "$base" (within $destination). Keep all non-meal activities unchanged.
+
+Strict rules:
+- For each meal, set:
+  - title: the venue's proper name (discoverable on Google Maps), not a generic description.
+  - location: the neighborhood/district (e.g., "Gangnam", "Shibuya"), NOT the city name.
+  - notes: 1 short line with a signature dish/ambience/booking tip; avoid repeating diet labels.
+  - cost: keep as-is or set to "\$\$"; do not use price ranges.
+- Preserve the number of activities and their order. Do not add/remove activities.
+- Preserve the exact timeOfDay values and keep all fields for non-meal activities unchanged.
+- Avoid any restaurant names already used in the trip: ${usedNamesList.take(18).join(', ')}.
+- Match budget: $budget. Dietary: $diet.
+- Output ONLY JSON for the updated day object with this schema: {"date": string, "title": string, "summary": string, "activities": [ {"timeOfDay": string, "title": string, "location": string, "notes": string, "cost": string} ]}
+
+Day to fix:
+$inputDay
+''';
+
+      try {
+        final resp = await model.generateContent(
+          [Content.text(prompt)],
+          generationConfig: GenerationConfig(
+            responseMimeType: 'application/json',
+            temperature: 0,
+          ),
+        );
+        final text = _safeAggregateText(resp);
+        final json = _decodeTolerantJson(text);
+        final fixedActs = (json['activities'] as List?)?.cast<Map<String, dynamic>>();
+        if (fixedActs == null || fixedActs.length != activities.length) {
+          debugPrint('[ItineraryAIService] Meal repair rejected: invalid length for $iso');
+          return;
+        }
+        // Final sanitize: mark paid costs and update used names
+        for (int i = 0; i < fixedActs.length; i++) {
+          final a = fixedActs[i];
+          final tod = (a['timeOfDay'] ?? '').toString();
+          if (isMeal(tod)) {
+            final title = (a['title'] ?? '').toString().trim();
+            if (title.isNotEmpty) used.add(title.toLowerCase());
+            // normalize cost badge now (restaurants are paid)
+            a['cost'] = _paidBadge;
+          }
+        }
+        day['activities'] = fixedActs;
+      } catch (e, st) {
+        debugPrint('[ItineraryAIService] Meal repair error on $iso: $e');
+        debugPrint('[ItineraryAIService] Stack: $st');
+      }
+    }
+
+    // Iterate and repair days that need it. We keep it sequential to avoid quota spikes.
+    for (int i = 0; i < allDays.length; i++) {
+      await repairDay(i);
+    }
+  }
+
+  // Infer a sensible transit note between two bases, place-agnostic heuristics.
+  String _transitNoteFor(String destination, String from, String to) {
+    final d = destination.toLowerCase();
+    final f = from.toLowerCase();
+    final t = to.toLowerCase();
+
+    bool mentions(String s, List<String> keys) =>
+        keys.any((k) => s.contains(k));
+
+    // If an obvious island appears, bias to flight/ferry
+    const islandKeys = [
+      'island', 'islands', 'archipelago',
+      'jeju', 'okinawa', 'bali', 'sardinia', 'sicily', 'corsica',
+      'hvar', 'crete', 'santorini', 'naxos', 'mykonos', 'mallorca', 'ibiza',
+      'tenerife', 'gran canaria', 'zanzibar', 'hainan', 'luzon', 'cebu', 'palawan'
+    ];
+    final islandPair = mentions(f, islandKeys) || mentions(t, islandKeys);
+
+    if (islandPair) {
+      return 'Recommended: flight (fast and frequent). Ferries exist on some routes. Aim for a morning departure around 08:30–10:30 to unlock the afternoon at your destination.';
+    }
+
+    // Country-specific rail hints
+    if (d.contains('japan')) {
+      return 'Recommended: Shinkansen/limited-express rail (e.g., Tokyo Station ⇄ Kyoto Station ~2h15). Aim for morning 08:30–10:30 to free your afternoon.';
+    }
+    if (d.contains('korea') || d.contains('south korea')) {
+      final seoul = f.contains('seoul') || t.contains('seoul');
+      final busan = f.contains('busan') || t.contains('busan');
+      final jeju = f.contains('jeju') || t.contains('jeju');
+      if ((f.contains('seoul') && t.contains('busan')) || (f.contains('busan') && t.contains('seoul'))) {
+        return 'KTX high-speed rail: Seoul Station ⇄ Busan Station ~2h15. Recommended morning 08:30–10:30 with seat reservation to maximize time on arrival.';
+      }
+      if (jeju && seoul) {
+        return 'Flight: Seoul Gimpo (GMP) ⇄ Jeju (CJU) ~1h10. Recommended morning 08:00–10:00; frequent departures.';
+      }
+      if (jeju && busan) {
+        return 'Flight: Busan Gimhae (PUS) ⇄ Jeju (CJU) ~1h. Recommended midday 11:00–13:00 or morning if you prefer more time on Jeju.';
+      }
+      return 'Typical route: KTX high-speed rail between major cities; aim for a morning 08:30–10:30 departure to free the afternoon.';
+    }
+    if (d.contains('france')) {
+      return 'Recommended: TGV/TER rail; target a morning 08:30–10:30 departure for longer legs.';
+    }
+    if (d.contains('italy')) {
+      return 'Recommended: Frecciarossa/Italo or regional rail; morning 08:30–10:30 is ideal for intercity moves.';
+    }
+    if (d.contains('spain')) {
+      return 'Recommended: AVE/ALVIA rail or coach; morning 08:30–10:30 for long legs, otherwise early afternoon.';
+    }
+    if (d.contains('germany')) {
+      return 'Recommended: ICE/IC rail; aim for morning 08:30–10:30 to keep the afternoon mostly free.';
+    }
+    if (d.contains('china')) {
+      return 'Recommended: high-speed G/D train; morning 08:30–10:30 works best for intercity transfers.';
+    }
+
+    // Fallback
+    return 'Recommended: intercity train/coach. For long transfers, depart in the morning around 08:30–10:00; for short hops, consider early afternoon; keep evenings for short transfers after a full day.';
   }
 
   String _buildPrompt({
@@ -643,7 +979,7 @@ User request:
 Constraints and preferences:
 - Budget level: $affordability
 - Travel styles: $styles
-- Flexibility: $flexibility (Structured < Balanced < Spontaneous)
+  - Flexibility: $flexibility (Structured < Balanced < Relaxed)
 - Travelers: $travelers
 - Pace: $pace
 - Must-see: $must
@@ -760,22 +1096,18 @@ Respond ONLY with JSON and no code fences. Do not add trailing commas. Use strai
     final s = '${monName(start.month)} ${start.year}';
     final e = '${monName(end.month)} ${end.year}';
     final window = s == e ? s : ('$s – $e');
-    final name = destination.toLowerCase();
-    // Targeted hints for Japan as requested; otherwise generic seasonal alignment.
-    if (name.contains('japan')) {
-      final m = start.month; // assume same season window
-      if (m >= 3 && m <= 4) {
-        return 'Trip window: $window. Prioritize cherry blossoms (sakura) at parks/temples, seasonal wagashi; for adventure, choose safe early-spring hikes (Fuji Five Lakes, Arakurayama Sengen Park) rather than summit attempts.';
-      }
-      if (m == 12 || m <= 2) {
-        return 'Trip window: $window. Emphasize winter experiences: Hokkaido (Sapporo/Otaru/Niseko), Nagano, and Yuzawa for snow; winter illuminations; warming specialties; allocate ski/onsen days if Adventure.';
-      }
-      if (m >= 7 && m <= 9) {
-        return 'Trip window: $window. Hot/humid: schedule indoor breaks, early/late outdoor slots; consider summer festivals and coastal escapes.';
-      }
-      return 'Trip window: $window. Align with seasonal foods, local festivals, and garden foliage.';
+    final m = start.month; // assume same seasonal window across the trip
+    String generic;
+    if (m >= 3 && m <= 5) {
+      generic = 'Spring window ($window): highlight blossoms/wildflowers, outdoor strolls, garden/park time, and seasonal sweets/produce.';
+    } else if (m >= 6 && m <= 8) {
+      generic = 'Summer window ($window): schedule early/late outdoor slots to avoid mid-day heat, add waterfronts/beaches, and include cool indoor breaks.';
+    } else if (m >= 9 && m <= 11) {
+      generic = 'Autumn window ($window): feature foliage viewpoints, harvest markets, cozy neighborhoods, and seasonal comfort foods.';
+    } else {
+      generic = 'Winter window ($window): bias toward winter lights/markets, warming cuisine, museums/cafés; include snow sports/onsen-style soaks where climates allow.';
     }
-    return 'Trip window: $window. Align picks with seasonal weather and events for the destination.';
+    return generic;
   }
 
   // Enforce reasonable first/last bases for common destinations.
@@ -783,6 +1115,9 @@ Respond ONLY with JSON and no code fences. Do not add trailing commas. Use strai
     final name = destination.toLowerCase();
     if (name.contains('japan')) {
       return 'Start the first segment in a major gateway (Tokyo or Osaka/Kyoto area). End the final segment in a major exit gateway (prefer Tokyo or Osaka/Kyoto) so the last night is in/near that hub. Keep segment order geographically progressive to reduce backtracking.';
+    }
+    if (name.contains('korea')) {
+      return 'Begin in a primary gateway (Seoul – Incheon/Gimpo). Prefer a forward sequence such as Seoul -> Busan (KTX) -> Jeju (flight) and then depart from a viable gateway (Seoul or Busan/Gimhae) without unnecessary returns. Avoid sequences like Seoul -> Jeju -> Seoul -> Busan; instead, end in Busan if international flights are available, or fly Jeju -> Seoul only as a same-day departure buffer with minimal sightseeing.';
     }
     // Generic rule: begin and end in international gateways, with common examples to bias choices.
     return [
@@ -813,7 +1148,6 @@ Respond ONLY with JSON and no code fences. Do not add trailing commas. Use strai
       return candidates.any((d) => !d.isBefore(s) && !d.isAfter(e));
     }
 
-    final name = destination.toLowerCase();
     final notes = <String>[];
     // Global-ish festive hooks
     if (inRange(12, 24)) {
@@ -826,16 +1160,14 @@ Respond ONLY with JSON and no code fences. Do not add trailing commas. Use strai
       notes.add('If Dec 31 is included, include a New Year’s Eve plan (countdown spot or local tradition).');
     }
     if (inRange(1, 1)) {
-      notes.add('If Jan 1 is included, reflect local New Year practices; in Japan consider Hatsumode shrine visits and note that many shops open late or remain closed.');
+      notes.add('If Jan 1 is included, reflect local New Year practices and opening hours; expect slower mornings or closures.');
     }
-
-    if (name.contains('japan')) {
-      // Nudge toward Japan-specific winter illuminations and shrine traditions in Dec/Jan
-      final m = start.month;
-      if (m == 12 || m == 1) {
-        notes.add('For Japan in Dec–Jan, include winter illuminations and a brief shrine/temple tradition context.');
-      }
+    // Lunar New Year varies (late Jan to mid Feb). When the window overlaps, nudge to include it if locally observed.
+    if (start.month <= 2 || end.month <= 2) {
+      notes.add('If Lunar New Year falls within these dates at this destination, include an appropriate celebration or neighborhood walk, accounting for closures and crowds.');
     }
+    // Generic nudge for any major local festival overlapping dates
+    notes.add('If any major local festival coincides with these dates, include a short, safe, authentic visit aligned with the day’s base.');
 
     if (notes.isEmpty) return null;
     return notes.join(' ');
