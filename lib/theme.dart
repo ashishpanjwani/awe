@@ -307,9 +307,9 @@ ThemeData get darkTheme => ThemeData(
   snackBarTheme: SnackBarThemeData(
     behavior: SnackBarBehavior.floating,
     elevation: 8,
-    backgroundColor: FlowColors.cardSurfaceDark,
+    backgroundColor: FlowColors.surfaceLight,
     contentTextStyle: GoogleFonts.raleway(
-      color: FlowColors.textLight,
+      color: FlowColors.textDark,
       fontWeight: FontWeight.w600,
     ),
     actionTextColor: FlowColors.softTealLight,

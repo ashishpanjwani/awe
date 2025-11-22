@@ -69,6 +69,7 @@ class _ItineraryListTile extends StatelessWidget {
             .pushNamed('/itinerary_result', arguments: payload);
       },
       borderRadius: BorderRadius.circular(16),
+      splashColor: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
           color: FlowColors.cardSurfaceDark,

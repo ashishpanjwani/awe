@@ -93,6 +93,8 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
               icon: const Icon(Icons.delete_outline, color: Colors.white),
               onPressed: () => _onDeletePressed(context),
             )
+          else if ((widget.data['error'] as String?)?.isNotEmpty == true)
+            SizedBox.shrink()
           else
             IconButton(
               tooltip: _isSaved ? 'Unsave itinerary' : 'Save itinerary',
@@ -107,7 +109,7 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
                   await _onSavePressed(context);
                 }
               },
-            ),
+            )
         ],
         bottom: days.isEmpty
             ? null
@@ -155,9 +157,23 @@ extension on _ItineraryResultScreenState {
   String? _formatDateRange(DateTime? s, DateTime? e) {
     if (s == null || e == null) return null;
     String fmt(DateTime d) {
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
       return '${months[d.month - 1]} ${d.day}, ${d.year}';
     }
+
     return '${fmt(s)} - ${fmt(e)}';
   }
 
@@ -180,7 +196,8 @@ extension on _ItineraryResultScreenState {
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: FlowColors.cardSurfaceDark,
-          title: const Text('Save Itinerary', style: TextStyle(color: Colors.white)),
+          title: const Text('Save Itinerary',
+              style: TextStyle(color: Colors.white)),
           content: TextField(
             controller: nameCtrl,
             autofocus: true,
@@ -342,13 +359,15 @@ extension on _ItineraryResultScreenState {
                             minimumSize: const Size.fromHeight(56),
                             foregroundColor: FlowColors.textLight,
                             side: BorderSide(
-                              color: FlowColors.cardBorderDark.withValues(alpha: 0.16),
+                              color: FlowColors.cardBorderDark
+                                  .withValues(alpha: 0.16),
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(28),
                             ),
                           ),
-                          onPressed: running ? null : () => Navigator.of(ctx).pop(),
+                          onPressed:
+                              running ? null : () => Navigator.of(ctx).pop(),
                           child: const Text('Cancel'),
                         ),
                       ),
@@ -374,7 +393,8 @@ extension on _ItineraryResultScreenState {
                                     if (ctx.mounted) {
                                       ScaffoldMessenger.of(ctx).showSnackBar(
                                         const SnackBar(
-                                          content: Text('Something went wrong. Please try again.'),
+                                          content: Text(
+                                              'Something went wrong. Please try again.'),
                                         ),
                                       );
                                     }
@@ -387,7 +407,8 @@ extension on _ItineraryResultScreenState {
                                   width: 24,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2.6,
-                                    valueColor: AlwaysStoppedAnimation<Color>(cs.onSecondary),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        cs.onSecondary),
                                   ),
                                 )
                               : Text(confirmLabel),
@@ -446,17 +467,17 @@ class _EmptyView extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (errorMessage.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  errorMessage,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.robotoMono(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+              // if (errorMessage.isNotEmpty) ...[
+              //   const SizedBox(height: 14),
+              //   Text(
+              //     errorMessage,
+              //     textAlign: TextAlign.center,
+              //     style: GoogleFonts.robotoMono(
+              //       color: Colors.white70,
+              //       fontSize: 12,
+              //     ),
+              //   ),
+              // ],
             ],
           ),
         ),
@@ -523,6 +544,7 @@ class _DayTimeline extends StatelessWidget {
       final noBreaks = s.replaceAll(RegExp(r"[\r\n]+"), ' ');
       return noBreaks.replaceAll(RegExp(r"\s{2,}"), ' ').trim();
     }
+
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       itemCount: (activities.length) + 1,
@@ -582,6 +604,7 @@ class _TimelineTileCard extends StatelessWidget {
       final noBreaks = s.replaceAll(RegExp(r"[\r\n]+"), ' ');
       return noBreaks.replaceAll(RegExp(r"\s{2,}"), ' ').trim();
     }
+
     final title = _cleanInline((activity['title'] ?? '').toString());
     final location = _cleanInline((activity['location'] ?? '').toString());
     final notes = _cleanInline((activity['notes'] ?? '').toString());
@@ -721,7 +744,10 @@ class _TimelineTileCard extends StatelessWidget {
 
 class _DayPillTabs extends StatefulWidget {
   const _DayPillTabs(
-      {required this.labels, required this.index, this.progress, required this.onChanged});
+      {required this.labels,
+      required this.index,
+      this.progress,
+      required this.onChanged});
   final List<String> labels;
   final int index;
   final double? progress; // continuous progress from TabController.animation
@@ -788,7 +814,9 @@ class _DayPillTabsState extends State<_DayPillTabs> {
   Widget build(BuildContext context) {
     final totalWidth = widget.labels.length * _tileWidth;
 
-    final effectiveLeft = (widget.progress ?? widget.index.toDouble()) * _tileWidth + _pillPadding;
+    final effectiveLeft =
+        (widget.progress ?? widget.index.toDouble()) * _tileWidth +
+            _pillPadding;
     return SingleChildScrollView(
       controller: _scroll,
       scrollDirection: Axis.horizontal,

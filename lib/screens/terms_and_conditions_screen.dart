@@ -11,7 +11,14 @@ class TermsAndConditionsScreen extends StatelessWidget {
       backgroundColor: FlowColors.primaryDark,
       appBar: AppBar(
         backgroundColor: FlowColors.primaryDark,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        centerTitle: true,
         title: Text(
           'Terms & Conditions',
           style: theme.textTheme.titleMedium?.copyWith(

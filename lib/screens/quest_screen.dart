@@ -46,12 +46,16 @@ class _QuestScreenState extends State<QuestScreen> {
       backgroundColor: FlowColors.primaryDark,
       appBar: AppBar(
         backgroundColor: FlowColors.primaryDark,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         centerTitle: true,
-        title: Text('Quest', style: theme.textTheme.titleMedium?.copyWith(color: FlowColors.textLight, fontWeight: FontWeight.w700)),
+        title: Text('Quest',
+            style: theme.textTheme.titleLarge?.copyWith(
+                color: FlowColors.textLight, fontWeight: FontWeight.w700)),
       ),
       body: _loading
           ? const _Loading()
@@ -75,18 +79,22 @@ class _QuestScreenState extends State<QuestScreen> {
                           onComplete: _daily!.quest.completed
                               ? null
                               : () async {
-                                  await QuestService().markCompleted(QuestEntryType.quest, _daily!);
+                                  await QuestService().markCompleted(
+                                      QuestEntryType.quest, _daily!);
                                   await _load(showSpinner: false);
                                   if (!mounted) return;
-                                  final messenger = ScaffoldMessenger.of(context);
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
                                   messenger.hideCurrentSnackBar();
                                   messenger.showSnackBar(
                                     SnackBar(
-                                      content: const Text('Marked as completed'),
+                                      content:
+                                          const Text('Marked as completed'),
                                       action: SnackBarAction(
                                         label: 'Undo',
                                         onPressed: () async {
-                                          await QuestService().markUncompleted(QuestEntryType.quest);
+                                          await QuestService().markUncompleted(
+                                              QuestEntryType.quest);
                                           await _load();
                                           _toast('Restored');
                                         },
@@ -112,18 +120,22 @@ class _QuestScreenState extends State<QuestScreen> {
                           onComplete: _daily!.microAdventure.completed
                               ? null
                               : () async {
-                                  await QuestService().markCompleted(QuestEntryType.microAdventure, _daily!);
+                                  await QuestService().markCompleted(
+                                      QuestEntryType.microAdventure, _daily!);
                                   await _load(showSpinner: false);
                                   if (!mounted) return;
-                                  final messenger = ScaffoldMessenger.of(context);
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
                                   messenger.hideCurrentSnackBar();
                                   messenger.showSnackBar(
                                     SnackBar(
-                                      content: const Text('Marked as completed'),
+                                      content:
+                                          const Text('Marked as completed'),
                                       action: SnackBarAction(
                                         label: 'Undo',
                                         onPressed: () async {
-                                          await QuestService().markUncompleted(QuestEntryType.microAdventure);
+                                          await QuestService().markUncompleted(
+                                              QuestEntryType.microAdventure);
                                           await _load();
                                           _toast('Restored');
                                         },
@@ -132,7 +144,8 @@ class _QuestScreenState extends State<QuestScreen> {
                                   );
                                 },
                           onReset: () async {
-                            final updated = await QuestService().resetMicroAdventure();
+                            final updated =
+                                await QuestService().resetMicroAdventure();
                             setState(() {
                               _daily = updated ?? _daily;
                             });
@@ -154,9 +167,12 @@ class _QuestScreenState extends State<QuestScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.lock_outline, color: FlowColors.paleBlue.withValues(alpha: 0.7), size: 36),
+            Icon(Icons.lock_outline,
+                color: FlowColors.paleBlue.withValues(alpha: 0.7), size: 36),
             const SizedBox(height: 12),
-            Text('Sign in to get your daily quest', style: theme.textTheme.titleMedium?.copyWith(color: FlowColors.textLight)),
+            Text('Sign in to get your daily quest',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(color: FlowColors.textLight)),
           ],
         ),
       ),
@@ -203,14 +219,16 @@ class _QuestCard extends StatefulWidget {
   State<_QuestCard> createState() => _QuestCardState();
 }
 
-class _QuestCardState extends State<_QuestCard> with SingleTickerProviderStateMixin {
+class _QuestCardState extends State<_QuestCard>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _confetti;
   bool _playing = false;
 
   @override
   void initState() {
     super.initState();
-    _confetti = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _confetti = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900));
   }
 
   @override
@@ -249,82 +267,103 @@ class _QuestCardState extends State<_QuestCard> with SingleTickerProviderStateMi
     return Stack(
       children: [
         Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: FlowColors.cardSurfaceDark,
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.local_fire_department, color: FlowColors.accentAmber, size: 20),
-              const SizedBox(width: 8),
-              Expanded(child: Text(widget.label, style: theme.textTheme.titleSmall?.copyWith(color: FlowColors.textLight.withValues(alpha: 0.9), height: 1.2))),
-              Tooltip(
-                message: 'Reset',
-                child: _IconCircleButton(
-                  icon: Icons.restart_alt,
-                  onPressed: widget.busy
-                      ? null
-                      : () => _showConfirmActionSheet(
-                            context,
-                            title: 'Reset quest?',
-                            message: 'This will replace today\'s quest with a new one.',
-                            confirmLabel: 'Reset',
-                            icon: Icons.warning_amber_rounded,
-                            iconColor: Colors.amber,
-                            onConfirm: widget.onReset,
-                          ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (widget.completed) _CompletedPill(),
-            ],
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: FlowColors.cardSurfaceDark,
+            border: Border.all(color: borderColor, width: 1),
           ),
-          const SizedBox(height: 16),
-          Text(widget.title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: FlowColors.textLight, height: 1.25)),
-          const SizedBox(height: 16),
-          for (final s in widget.steps)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  const _BulletDot(),
+                  Icon(Icons.local_fire_department,
+                      color: FlowColors.accentAmber, size: 20),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(s, style: theme.textTheme.bodyMedium?.copyWith(color: FlowColors.textLight.withValues(alpha: 0.9), height: 1.45))),
+                  Expanded(
+                      child: Text(widget.label,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                              color:
+                                  FlowColors.textLight.withValues(alpha: 0.9),
+                              height: 1.2))),
+                  Tooltip(
+                    message: 'Reset',
+                    child: _IconCircleButton(
+                      icon: Icons.restart_alt,
+                      onPressed: widget.busy
+                          ? null
+                          : () => _showConfirmActionSheet(
+                                context,
+                                title: 'Reset quest?',
+                                message:
+                                    'This will replace today\'s quest with a new one.',
+                                confirmLabel: 'Reset',
+                                icon: Icons.warning_amber_rounded,
+                                iconColor: Colors.amber,
+                                onConfirm: widget.onReset,
+                              ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (widget.completed) _CompletedPill(),
                 ],
               ),
-            ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: FlowColors.chipSelectedDark,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.psychology_alt, color: FlowColors.accentTeal, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(widget.reflection, style: theme.textTheme.bodyMedium?.copyWith(color: FlowColors.textLight, height: 1.45)),
+              const SizedBox(height: 16),
+              Text(widget.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: FlowColors.textLight,
+                      height: 1.25)),
+              const SizedBox(height: 16),
+              for (final s in widget.steps)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _BulletDot(),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: Text(s,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: FlowColors.textLight
+                                      .withValues(alpha: 0.9),
+                                  height: 1.45))),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: FlowColors.chipSelectedDark,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.psychology_alt,
+                        color: FlowColors.accentTeal, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(widget.reflection,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                              color: FlowColors.textLight, height: 1.45)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _PrimaryButton(
+                label: widget.completed ? 'Completed' : 'Mark Completed',
+                icon: widget.completed ? Icons.check_circle : Icons.task_alt,
+                onPressed: (widget.onComplete == null || widget.busy)
+                    ? null
+                    : _handleComplete,
+              )
+            ],
           ),
-          const SizedBox(height: 16),
-          _PrimaryButton(
-            label: widget.completed ? 'Completed' : 'Mark Completed',
-            icon: widget.completed ? Icons.check_circle : Icons.task_alt,
-            onPressed: (widget.onComplete == null || widget.busy) ? null : _handleComplete,
-          )
-        ],
-      ),
         ),
         if (widget.busy)
           Positioned.fill(
@@ -334,7 +373,10 @@ class _QuestCardState extends State<_QuestCard> with SingleTickerProviderStateMi
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Center(
-                child: SizedBox(height: 28, width: 28, child: CircularProgressIndicator(strokeWidth: 3)),
+                child: SizedBox(
+                    height: 28,
+                    width: 28,
+                    child: CircularProgressIndicator(strokeWidth: 3)),
               ),
             ),
           ),
@@ -367,14 +409,16 @@ class _MicroCard extends StatefulWidget {
   State<_MicroCard> createState() => _MicroCardState();
 }
 
-class _MicroCardState extends State<_MicroCard> with SingleTickerProviderStateMixin {
+class _MicroCardState extends State<_MicroCard>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _confetti;
   bool _playing = false;
 
   @override
   void initState() {
     super.initState();
-    _confetti = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _confetti = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900));
   }
 
   @override
@@ -425,7 +469,12 @@ class _MicroCardState extends State<_MicroCard> with SingleTickerProviderStateMi
                 children: [
                   Icon(Icons.bolt, color: FlowColors.accentGreen, size: 20),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(widget.label, style: theme.textTheme.titleSmall?.copyWith(color: FlowColors.textLight.withValues(alpha: 0.9), height: 1.2))),
+                  Expanded(
+                      child: Text(widget.label,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                              color:
+                                  FlowColors.textLight.withValues(alpha: 0.9),
+                              height: 1.2))),
                   Tooltip(
                     message: 'Reset',
                     child: _IconCircleButton(
@@ -435,7 +484,8 @@ class _MicroCardState extends State<_MicroCard> with SingleTickerProviderStateMi
                           : () => _showConfirmActionSheet(
                                 context,
                                 title: 'Reset micro adventure?',
-                                message: 'This will replace today\'s micro adventure.',
+                                message:
+                                    'This will replace today\'s micro adventure.',
                                 confirmLabel: 'Reset',
                                 icon: Icons.warning_amber_rounded,
                                 iconColor: Colors.amber,
@@ -448,14 +498,23 @@ class _MicroCardState extends State<_MicroCard> with SingleTickerProviderStateMi
                 ],
               ),
               const SizedBox(height: 16),
-              Text(widget.title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: FlowColors.textLight, height: 1.25)),
+              Text(widget.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: FlowColors.textLight,
+                      height: 1.25)),
               const SizedBox(height: 12),
-              Text(widget.description, style: theme.textTheme.bodyMedium?.copyWith(color: FlowColors.textLight.withValues(alpha: 0.9), height: 1.45)),
+              Text(widget.description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                      color: FlowColors.textLight.withValues(alpha: 0.9),
+                      height: 1.45)),
               const SizedBox(height: 16),
               _PrimaryButton(
                 label: widget.completed ? 'Completed' : 'Mark Completed',
                 icon: widget.completed ? Icons.check_circle : Icons.task_alt,
-                onPressed: (widget.onComplete == null || widget.busy) ? null : _handleComplete,
+                onPressed: (widget.onComplete == null || widget.busy)
+                    ? null
+                    : _handleComplete,
               )
             ],
           ),
@@ -468,7 +527,10 @@ class _MicroCardState extends State<_MicroCard> with SingleTickerProviderStateMi
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Center(
-                child: SizedBox(height: 28, width: 28, child: CircularProgressIndicator(strokeWidth: 3)),
+                child: SizedBox(
+                    height: 28,
+                    width: 28,
+                    child: CircularProgressIndicator(strokeWidth: 3)),
               ),
             ),
           ),
@@ -483,7 +545,8 @@ class _PrimaryButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
 
-  const _PrimaryButton({required this.label, required this.icon, required this.onPressed});
+  const _PrimaryButton(
+      {required this.label, required this.icon, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -497,11 +560,14 @@ class _PrimaryButton extends StatelessWidget {
           foregroundColor: cs.onSecondary,
           minimumSize: const Size.fromHeight(48),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         ),
         onPressed: onPressed,
         icon: Icon(icon, color: cs.onSecondary),
-        label: Text(label, style: TextStyle(color: cs.onSecondary, fontWeight: FontWeight.w600)),
+        label: Text(label,
+            style:
+                TextStyle(color: cs.onSecondary, fontWeight: FontWeight.w600)),
       ),
     );
   }
@@ -512,7 +578,8 @@ class _GhostButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
 
-  const _GhostButton({required this.label, required this.icon, required this.onPressed});
+  const _GhostButton(
+      {required this.label, required this.icon, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -525,7 +592,9 @@ class _GhostButton extends StatelessWidget {
       ),
       onPressed: onPressed,
       icon: Icon(icon, color: FlowColors.textLight),
-      label: Text(label, style: const TextStyle(color: FlowColors.textLight, fontWeight: FontWeight.w600)),
+      label: Text(label,
+          style: const TextStyle(
+              color: FlowColors.textLight, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -538,14 +607,17 @@ class _CompletedPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: FlowColors.accentGreen.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: FlowColors.accentGreen.withValues(alpha: 0.5)),
+        border:
+            Border.all(color: FlowColors.accentGreen.withValues(alpha: 0.5)),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
           SizedBox(width: 6),
-          Text('Completed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          Text('Completed',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -571,7 +643,8 @@ class _IconCircleButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: FlowColors.chipBgDark,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
+            border: Border.all(
+                color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
           ),
           alignment: Alignment.center,
           child: Icon(icon, size: 22, color: color),
@@ -643,12 +716,18 @@ class _ConfettiPainter extends CustomPainter {
       canvas.save();
       canvas.translate(dx + (i.isEven ? 8.0 : -8.0) * (1 - t), dy);
       canvas.rotate((i * 17 + rnd) * 0.005);
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: sz, height: sz * 2), const Radius.circular(1.5)), paint);
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(
+              Rect.fromCenter(center: Offset.zero, width: sz, height: sz * 2),
+              const Radius.circular(1.5)),
+          paint);
       canvas.restore();
     }
     // soft check pulse
-    final checkAlpha = (progress < 0.6) ? (progress / 0.6) : (1 - (progress - 0.6) / 0.4);
-    final checkPaint = Paint()..color = Colors.white.withValues(alpha: checkAlpha.clamp(0, 1) * 0.8);
+    final checkAlpha =
+        (progress < 0.6) ? (progress / 0.6) : (1 - (progress - 0.6) / 0.4);
+    final checkPaint = Paint()
+      ..color = Colors.white.withValues(alpha: checkAlpha.clamp(0, 1) * 0.8);
     final center = Offset(size.width - 28, 28);
     canvas.drawCircle(center, 14, checkPaint);
     final path = Path();
@@ -665,7 +744,8 @@ class _ConfettiPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ConfettiPainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(covariant _ConfettiPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 Future<void> _showConfirmActionSheet(
@@ -701,11 +781,17 @@ Future<void> _showConfirmActionSheet(
                   children: [
                     Icon(icon, color: iconColor, size: 22),
                     const SizedBox(width: 8),
-                    Text(title, style: theme.textTheme.titleMedium?.copyWith(color: FlowColors.textLight, fontWeight: FontWeight.w600)),
+                    Text(title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                            color: FlowColors.textLight,
+                            fontWeight: FontWeight.w600)),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(message, style: theme.textTheme.bodyMedium?.copyWith(color: FlowColors.textLight.withValues(alpha: 0.9), height: 1.45)),
+                Text(message,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                        color: FlowColors.textLight.withValues(alpha: 0.9),
+                        height: 1.45)),
                 const SizedBox(height: 20),
                 Row(
                   children: [
@@ -714,10 +800,14 @@ Future<void> _showConfirmActionSheet(
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(56),
                           foregroundColor: FlowColors.textLight,
-                          side: BorderSide(color: FlowColors.cardBorderDark.withValues(alpha: 0.16)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                          side: BorderSide(
+                              color: FlowColors.cardBorderDark
+                                  .withValues(alpha: 0.16)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28)),
                         ),
-                        onPressed: running ? null : () => Navigator.of(ctx).pop(),
+                        onPressed:
+                            running ? null : () => Navigator.of(ctx).pop(),
                         child: Text(cancelLabel),
                       ),
                     ),
@@ -728,7 +818,8 @@ Future<void> _showConfirmActionSheet(
                           minimumSize: const Size.fromHeight(56),
                           backgroundColor: cs.secondary,
                           foregroundColor: cs.onSecondary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28)),
                         ),
                         onPressed: running
                             ? null
@@ -742,7 +833,9 @@ Future<void> _showConfirmActionSheet(
                                   debugPrint('$st');
                                   if (ctx.mounted) {
                                     ScaffoldMessenger.of(ctx).showSnackBar(
-                                      const SnackBar(content: Text('Something went wrong. Please try again.')),
+                                      const SnackBar(
+                                          content: Text(
+                                              'Something went wrong. Please try again.')),
                                     );
                                   }
                                   setModalState(() => running = false);
@@ -754,7 +847,8 @@ Future<void> _showConfirmActionSheet(
                                 width: 24,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.6,
-                                  valueColor: AlwaysStoppedAnimation<Color>(cs.onSecondary),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      cs.onSecondary),
                                 ),
                               )
                             : Text(confirmLabel),

@@ -50,8 +50,7 @@ class FlowApp extends StatelessWidget {
           '/loading': (context) => const LoadingScreen(),
           '/itinerary_result': (context) {
             final args = ModalRoute.of(context)!.settings.arguments;
-            final map =
-                (args is Map<String, dynamic>) ? args : <String, dynamic>{};
+            final map = (args is Map<String, dynamic>) ? args : <String, dynamic>{};
             return ItineraryResultScreen(data: map);
           },
           '/quest': (context) => const QuestScreen(),

@@ -234,11 +234,16 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         decoration: const BoxDecoration(color: FlowColors.primaryDark),
         child: BlocBuilder<DestinationDetailCubit, DestinationDetailState>(
-          buildWhen: (p, n) => p.generatingItinerary != n.generatingItinerary,
+          buildWhen: (p, n) =>
+              p.generatingItinerary != n.generatingItinerary ||
+              p.loadingDescription != n.loadingDescription ||
+              p.description != n.description,
           builder: (context, state) {
+            final hasDescription = state.description.trim().isNotEmpty;
+            final enabled = !state.generatingItinerary && !state.loadingDescription && hasDescription;
             return CtaButton(
               label: state.generatingItinerary ? 'Generating…' : 'Generate Itinerary',
-              onPressed: state.generatingItinerary ? null : _onGenerate,
+              onPressed: enabled ? _onGenerate : null,
               loading: state.generatingItinerary,
               leadingIcon: state.generatingItinerary ? null : Icons.auto_awesome,
             );
@@ -250,22 +255,33 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
 
   void _onGenerate() {
     final name = widget.destination.name;
-    final start = DateTime.now();
-    final days = context.read<DestinationDetailCubit>().state.days;
-    final end = DateTime(start.year, start.month, start.day + (days - 1));
+    final now = DateTime.now();
+    // Start tomorrow (season/festival awareness needs concrete dates)
+    final start = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final days = _cubit.state.days;
+    final end = start.add(Duration(days: (days - 1).clamp(0, 365)));
 
-    context.read<DestinationDetailCubit>().setGenerating(true);
+    // Use the local cubit; our BlocProvider is below this State's context
+    _cubit.setGenerating(true);
 
-    final task = ItineraryAIService().generateItinerary(
+    // Use the same robust Architect → Builders flow as the main Builder screen,
+    // with sensible defaults. We only vary the trip length here.
+    final task = ItineraryAIService().generateItineraryArchitectBuilders(
       destination: name,
       startDate: start,
       endDate: end,
-      affordability: 'Moderate',
-      travelStyles: const ['Culture'],
-      flexibility: 'Balanced',
+      affordability: 'Moderate', // standard default
+      travelStyles: const ['Adventure', 'Culture'], // standard default
+      flexibility: 'Balanced', // standard default daily pace
+      travelParty: 'Couple', // standard default party
       travelers: 2,
       pace: 'moderate',
+      diversityPreference: 'balanced', // visit 2–3 places when days allow
+      mustSee: null,
+      dietaryPreference: null,
     );
+
+    debugPrint('[DestinationDetail] Pushing LoadingScreen for $name ($days days)');
 
     Navigator.of(context)
         .push(
@@ -274,7 +290,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
       ),
     )
         .then((_) {
-      if (mounted) context.read<DestinationDetailCubit>().setGenerating(false);
+      if (mounted) _cubit.setGenerating(false);
     });
   }
 }

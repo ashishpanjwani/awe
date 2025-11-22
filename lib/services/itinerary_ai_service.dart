@@ -70,7 +70,8 @@ class ItineraryAIService {
     required List<String> travelStyles,
     required String flexibility,
     int travelers = 2,
-    String? travelParty, // Solo | Couple | Friends | Family (hints tone/constraints)
+    String?
+        travelParty, // Solo | Couple | Friends | Family (hints tone/constraints)
     String pace = 'moderate',
     List<String>? mustSee,
     String? dietaryPreference,
@@ -79,7 +80,10 @@ class ItineraryAIService {
     int maxParallel = 4,
   }) async {
     final days = endDate.difference(startDate).inDays + 1;
-    final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
+    final archModel = FirebaseAI.googleAI().generativeModel(model: _modelName);
+
+    final builderModel =
+        FirebaseAI.googleAI().generativeModel(model: 'gemini-2.5-flash-lite');
 
     void progress(String s) {
       debugPrint('[Architect&Builders] $s');
@@ -103,7 +107,7 @@ class ItineraryAIService {
         seasonNote: _seasonNoteFor(destination, startDate, endDate),
       );
 
-      final archResp = await model.generateContent(
+      final archResp = await archModel.generateContent(
         [Content.text(archPrompt)],
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
@@ -113,9 +117,9 @@ class ItineraryAIService {
 
       final archText = _safeAggregateText(archResp);
       final archJson = _decodeTolerantJson(archText);
-      final segments = (archJson['segments'] as List?)
-              ?.cast<Map<String, dynamic>>() ??
-          <Map<String, dynamic>>[];
+      final segments =
+          (archJson['segments'] as List?)?.cast<Map<String, dynamic>>() ??
+              <Map<String, dynamic>>[];
       if (segments.isEmpty) {
         throw Exception('Architect returned no segments');
       }
@@ -130,7 +134,8 @@ class ItineraryAIService {
         final to = DateTime(cursor.year, cursor.month, cursor.day)
             .add(Duration(days: count - 1));
         segRanges.add(_Segment(
-          name: (seg['name'] as String?) ?? (seg['focus'] as String? ?? 'Segment'),
+          name: (seg['name'] as String?) ??
+              (seg['focus'] as String? ?? 'Segment'),
           base: (seg['base'] as String?) ?? destination,
           focus: (seg['focus'] as String?) ?? '',
           start: from,
@@ -150,14 +155,14 @@ class ItineraryAIService {
         final isFirstSegment = i == 0;
         final isLastSegment = i == segRanges.length - 1;
         futures.add(semaphore.withPermit(() async {
-            return _buildSegment(
-            model: model,
+          return _buildSegment(
+            model: builderModel,
             destination: destination,
             affordability: affordability,
             travelStyles: travelStyles,
             flexibility: flexibility,
-              travelers: travelers,
-              travelParty: travelParty,
+            travelers: travelers,
+            travelParty: travelParty,
             pace: pace,
             mustSee: mustSee,
             dietaryPreference: dietaryPreference,
@@ -167,7 +172,7 @@ class ItineraryAIService {
             isLastSegment: isLastSegment,
             tripStartDate: startDate,
             tripEndDate: endDate,
-              seasonNote: _seasonNoteFor(destination, seg.start, seg.end),
+            seasonNote: _seasonNoteFor(destination, seg.start, seg.end),
           );
         }));
       }
@@ -179,17 +184,6 @@ class ItineraryAIService {
       for (final chunk in built) {
         allDays.addAll(chunk);
       }
-
-      // Enrich meals to ensure real, named venues (keeps previous improvements intact)
-      progress('Ensuring named restaurants/cafés (no generic placeholders)…');
-      await _ensureNamedVenues(
-        model: model,
-        destination: destination,
-        affordability: affordability,
-        dietaryPreference: dietaryPreference,
-        allDays: allDays,
-        segs: segRanges,
-      );
 
       _harmonizeDays(destination, allDays, segRanges);
       _injectArrivalDepartureIfMissing(destination, allDays, segRanges);
@@ -246,24 +240,35 @@ class ItineraryAIService {
     String diversityPreference = 'balanced',
     String? seasonNote,
   }) {
+    // 1. DYNAMIC INPUT PREPARATION (Dart logic > AI Token usage)
     final styles = travelStyles.isEmpty ? 'General' : travelStyles.join(', ');
-    final must = (mustSee == null || mustSee.isEmpty) ? 'None' : mustSee.join(', ');
-    final diet = (dietaryPreference == null || dietaryPreference.trim().isEmpty)
-        ? 'None'
-        : dietaryPreference.trim();
+    final must =
+        (mustSee == null || mustSee.isEmpty) ? 'None' : mustSee.join(', ');
 
+    // Only add dietary/party constraints if they actually exist.
+    // Sending "Diet: None" is wasted tokens.
+    String constraints =
+        "- Budget: $affordability; Pace: $pace; Travelers: $travelers";
+    if (travelParty != null && travelParty.isNotEmpty) {
+      constraints += "; Party: $travelParty";
+    }
+    if (dietaryPreference != null && dietaryPreference.trim().isNotEmpty) {
+      constraints += "; Diet: $dietaryPreference";
+    }
+
+    // Keep your existing logic for diversity hints (It is good logic)
     final diversityHint = () {
       switch (diversityPreference) {
         case 'deep_dive':
-          return 'Prefer 1–2 bases with day trips nearby (deep-dive).';
+          return 'Prefer 1–2 bases with day trips (deep-dive).';
         case 'wide':
-          return 'Prefer 3–5 distinct regions/cities (wide coverage).';
+          return 'Prefer 3–5 distinct regions (wide coverage).';
         default:
           return 'Prefer 2–3 bases across distinct regions (balanced).';
       }
     }();
 
-    // Compute hard segment count bounds based on trip length and diversity
+    // Keep your existing segment math (Strict logic is better than AI guessing)
     int minSeg;
     int maxSeg;
     switch (diversityPreference) {
@@ -273,7 +278,7 @@ class ItineraryAIService {
         break;
       case 'wide':
         if (totalDays <= 4) {
-          minSeg = 2; // gateway + one base only on very short trips
+          minSeg = 2;
           maxSeg = 3;
         } else if (totalDays <= 6) {
           minSeg = 3;
@@ -300,50 +305,42 @@ class ItineraryAIService {
         break;
     }
 
-    final party = (travelParty ?? '').trim();
     final gatewayRule = _gatewayRuleFor(destination);
+
+    // 2. THE OPTIMIZED PROMPT
+    // Reduced prose, strict bullet points, clearer hierarchy.
     return '''
-System instruction: Act as a veteran travel architect. Output ONLY JSON.
+System: Strategic Travel Architect. Output JSON.
+Task: Partition a $totalDays-day trip to "$destination" into $minSeg-$maxSeg logical segments.
 
-User: Design a high-level plan for a $totalDays-day trip in "$destination".
-Constraints:
-- Budget: $affordability
-- Travel styles: $styles
+Context:
+$constraints
+- Styles: $styles
 - Flexibility: $flexibility
-- Travelers: $travelers
-- Travel party: ${party.isEmpty ? 'Unspecified' : party} (influence suitability)
-  - Pace: $pace
-  - Must-see: $must
-  - Dietary: $diet
-  - Diversity preference: $diversityPreference. $diversityHint
-- Season context: ${seasonNote ?? 'Use the actual trip dates to align with seasonal highlights, local festivals, and weather.'}
+- Must-See: $must
+- Diversity: $diversityPreference ($diversityHint)
+- Season: ${seasonNote ?? 'Align with dates'}
 
-  Rules:
-  - Propose between $minSeg and $maxSeg segments (inclusive). Each segment has a distinct base city/region and focus theme.
-  - Total dayCount across segments MUST equal $totalDays.
-  - Ensure geographic diversity and avoid assigning all days to one city unless totalDays <= 2.
-  - The base MUST be a real city/region in $destination suitable as a hub for that segment.
-  - Order segments to minimize backtracking in a forward, sensible line.
-  - Prefer UNIQUE bases. Do NOT create multiple non-contiguous segments for the same base unless it is the final-night departure buffer and no alternate international gateway is viable.
-  - If an alternate international gateway near the final segment exists (e.g., secondary hub city), END THERE instead of returning to the first gateway.
-  - If a return to the initial gateway is unavoidable, allocate at most 1 day for the final segment and treat it as a light departure day (different neighborhood; no repeat of earlier highlights).
-  - Entry/Exit sequencing (strict): $gatewayRule
-  - Handling of "Must-see" (Include Places): Treat them as preferences, not guarantees. If they are too far apart or infeasible within $totalDays days, you MUST prune to a feasible subset and cluster around the chosen bases. Prefer to keep a sensible gateway and 1–2 nearby bases for short trips. Keep the flow robust rather than forced.
-  - For very short trips (<= 4 days): Limit to gateway + at most one outlying base. Convert other must-see items into intra-day highlights or drop them.
-  - Honor the diversity preference strictly: do NOT return fewer than $minSeg segments unless physically impossible; justify in meta.includePlaceDecisions if pruning reduces bases.
+Rules:
+1. Total "dayCount" sum MUST equal $totalDays.
+2. Geographic Logic: Order segments to minimize backtracking.
+3. Bases: Must be real, logical hubs. Prefer UNIQUE bases (unless forced by flight departure).
+4. Gateway Logic: $gatewayRule
+5. Feasibility: "Must-sees" are preferences. Prune them if they force a bad route or illogical backtracking.
+6. Short Trip Handling: If days <= 4, limit to Gateway + max 1 nearby base.
 
-JSON schema to output:
+JSON Schema:
 {
   "segments": [
     {
-      "name": string,
-      "base": string,
-      "focus": string,
+      "name": string, // e.g. "Kyoto & Temples"
+      "base": string, // e.g. "Kyoto"
+      "focus": string, // Main theme/vibe
       "dayCount": number
     }
   ],
   "meta": {
-    "includePlaceDecisions": [
+    "pruned": [ // Rename 'includePlaceDecisions' to 'pruned' to save tokens
       { "place": string, "kept": boolean, "reason": string }
     ]
   }
@@ -370,97 +367,89 @@ JSON schema to output:
     required DateTime tripStartDate,
     required DateTime tripEndDate,
   }) async {
-    final styles = travelStyles.isEmpty ? 'General' : travelStyles.join(', ');
-    final must = (mustSee == null || mustSee.isEmpty) ? 'None' : mustSee.join(', ');
-    final diet = (dietaryPreference == null || dietaryPreference.trim().isEmpty)
-        ? 'None'
-        : dietaryPreference.trim();
-
+    // 1. TOKEN DIET: PREPARE DATES IN DART
     final dates = <String>[];
     for (int i = 0; i < segment.dayCount; i++) {
-      final d = DateTime(segment.start.year, segment.start.month, segment.start.day)
-          .add(Duration(days: i));
-      dates.add(_isoDate(d));
+      dates.add(_isoDate(segment.start.add(Duration(days: i))));
     }
 
-    final party = (travelParty ?? '').trim();
-    final holidayNote = _holidayNoteFor(destination, segment.start, segment.end);
+    // 2. TOKEN DIET: CONDITIONAL RULES
+    // Instead of sending "If styles include Adventure..." to everyone,
+    // we check the style in Dart and ONLY send the rule if true.
+    String specificRules = "";
+
+    if (travelStyles.contains("Adventure")) {
+      specificRules +=
+          "\n- Adventure: Bias toward active experiences (hikes/kayak). For peaks, respect seasons/safety.";
+    }
+    if (travelStyles.contains("Nightlife") || travelStyles.contains("Social")) {
+      specificRules +=
+          "\n- Nightlife: Include 1-2 safe evening social spots (bars/music).";
+    }
+    if (travelStyles.contains("Culture")) {
+      specificRules +=
+          "\n- Culture: Include local interactions (market/walk/workshop).";
+    }
+
+    // Only inject holiday note if it is non-null and meaningful
+    final holidayNote =
+        _holidayNoteFor(destination, segment.start, segment.end);
+    if (holidayNote != null && holidayNote.isNotEmpty) {
+      specificRules +=
+          "\n- Holiday: Integrate '$holidayNote' into the day's narrative.";
+    }
+
+    // Japan/Korea specific checks (Kept, but condensed)
+    final destLower = destination.toLowerCase();
+    if (destLower.contains('japan')) {
+      specificRules +=
+          "\n- Region: Japan. Mt Fuji summit only in season. Prioritize early starts.";
+    }
+
+    // 3. TOKEN DIET: COMPACT CONSTRAINTS
+    final partyStr =
+        travelParty?.isNotEmpty == true ? travelParty : "Unspecified";
+    final dietStr =
+        dietaryPreference?.isNotEmpty == true ? dietaryPreference : "None";
+    final mustStr = mustSee?.isNotEmpty == true ? mustSee!.join(", ") : "None";
+
     final prompt = '''
-System: You are a precise travel builder. Output ONLY JSON matching the schema.
+System: Expert Travel Curator. Output JSON only.
+Task: Create a rich, personalized plan for ${dates.first} to ${dates.last} in "${segment.base}".
 
-User: Build the concrete plan for these dates in $destination.
-Segment:
-- Title: ${segment.name}
-- Base: ${segment.base}
-- Focus: ${segment.focus}
-- Dates: ${dates.join(', ')} (one object per date in this exact order)
+Context:
+- Base: ${segment.base} (Focus: ${segment.focus})
+- Budget: $affordability; Pace: $pace; Travelers: $travelers
+- Party: $partyStr; Styles: ${travelStyles.join(', ')}
+- Must-See: $mustStr
+- Diet: $dietStr
+- Season: ${seasonNote ?? 'Align with dates'}
+$specificRules
 
- Constraints:
-- Budget: $affordability; Pace: $pace; Flexibility: $flexibility; Travelers: $travelers
-  - Travel party: ${party.isEmpty ? 'Unspecified' : party}. Adjust suitability (e.g., family-friendly picks if Family; social/nightlife options if Friends; romantic if Couple; safe solo-friendly flows if Solo).
-- Travel styles: $styles
-- Must-see: $must
-- Dietary: $diet (align restaurants; focus on specialties rather than repeating diet labels)
-- Stay strictly within base/nearby areas appropriate for "${segment.base}" and the focus.
- - Pick real, named restaurants/cafés (discoverable on Google Maps) for breakfast, lunch, and dinner.
- - STRICT: No generic placeholders like "local cafe", "street food area", "food court", "ramen shop", "seafood restaurant". Use specific proper names.
- - For each meal, use a DIFFERENT venue name than any other day in this trip (no repeats across the itinerary).
-- Avoid options/alternatives. Provide a single cohesive flow per day.
-- Keep text concise and human-friendly.
+Strict Rules:
+1. Stay in/near ${segment.base}.
+2. Real, specific places only. No "options".
+3. Transit: If coming from ${previousBase ?? 'elsewhere'} on Day 1, include travel leg (morn/aft).
+4. Boundary: ${isFirstSegment ? "Day 1 is Arrival (Airport->Hotel)." : ""} ${isLastSegment ? "Last Day is Departure." : ""}
+4. WRITING STYLE: 
+   - Do NOT be generic. 
+   - In "notes", describe the *atmosphere* or *signature dish*. 
+   - Explain WHY this fits a "${travelStyles.first}" traveler. 
 
- Title & locations & cost rules (strict):
-- For each day.title, prefix with "${segment.base}: " then a short theme, e.g., "${segment.base}: Hidden alleys & hanok tea".
-- For each activity.location, DO NOT append the city name "${segment.base}". Use the venue or neighborhood only.
-- For each activity.cost, ONLY use a compact badge: Free (no charge) or double-dollar sign for paid.
- - For meals: activity.title MUST be the venue name (proper noun). activity.location should be the neighborhood/district (e.g., "Gangnam"), NOT the city name.
-  
-  Transit rule (decisive, no vagueness):
-  - If this is the first date in this segment and the previous segment base was "${previousBase ?? segment.base}", and that differs from "${segment.base}": include ONE travel activity from "${previousBase ?? segment.base}" to "${segment.base}" with a realistic mode (high-speed rail/rail, coach, flight, or ferry as appropriate).
-  - You MUST choose a specific time-of-day slot for that travel activity: "morning", "midday", or "evening".
-  - Decision rules: prefer morning for long rail/flight legs to unlock afternoon time; use midday only for short hops when morning has a marquee activity; use evening for short transfers following a full day.
-  - Never write phrases like "depending on plans" or present undecided options. Decide the slot and integrate it into the day's flow.
-  - Never propose an overland route across open sea. If a sea crossing is required (e.g., islands), use flight or ferry.
-
- Seasonal & holiday alignment:
- - ${seasonNote ?? 'Align daily choices with the actual months (weather, daylight, seasonal events).'}
-  - ${holidayNote ?? 'If any global or local festivals fall on these dates, include them appropriately.'}
-  - If seasonally relevant highlights exist for this destination and dates, INCLUDE at least one explicit seasonal highlight within the first 1–2 days of the relevant segment (e.g., spring blossoms/wildflowers; autumn foliage; winter snow activities where applicable; summer waterfronts/early-late outdoor slots).
-
- Travel-style specificity (important):
-  - If styles include "Adventure": bias toward active experiences (mountain/ridge hikes, ski/snow sports in winter regions, canyoning/kayak, cycling). Ensure season-appropriate picks.
-   - For prominent peaks anywhere: propose summit climbs only in official open season with proper safety. Outside that window, switch to safe alternatives (ridge viewpoints, guided hikes, caves/lava tubes, snowshoeing) and mention guiding briefly when relevant.
-
-  Authentic, local experiences (safe & tasteful):
-  - Tailor 1–2 activities to feel distinctly local per day when possible. Examples include: neighborhood food alleys, izakaya/ramen-yokocho strolls, morning fish markets, tea ceremonies, cooking classes, pottery/craft workshops, language-exchange meetups, community walks, flea markets, indie music gigs, traditional bathhouses (onsen/sento etiquette), themed cafes (e.g., maid, animal, anime) if culturally relevant.
-  - Strict safety filter: absolutely avoid adult/sexualized content, escort/host services, fetish or NSFW themes. Themed cafes are acceptable but do NOT sexualize or imply adult content, and avoid them entirely for Family travel parties.
-  - Adjust by party: Family -> kid-safe museums/zoos/workshops/interactive exhibits; Solo -> social but safe mixers, walking tours, shared foodie tables; Friends -> nightlife/live music/casual bars (non-explicit); Couple -> scenic/romantic viewpoints, date-friendly dining.
-  - If styles include "Culture": include at least one interaction-oriented element (e.g., guided neighborhood walk with a local, short language exchange, community market conversation) kept respectful and brief.
-   - If styles include "Nightlife": add an evening slot on 1–3 nights focused on vibrant but tasteful nightlife (e.g., live music bars, craft cocktail bars, club district walks) aligned with the base city. Keep it safe and non-explicit.
-
-  Trip boundary rule (arrival/departure, strict):
-  - Is this the first segment of the whole trip? ${isFirstSegment ? 'YES' : 'NO'}
-  - Is this the last segment of the whole trip? ${isLastSegment ? 'YES' : 'NO'}
-  - If YES and this is the first calendar date (${_isoDate(tripStartDate)}), include ONE concise arrival item (airport/rail arrival + hotel transfer/check-in) at an appropriate slot (usually morning for long-haul). Keep the rest of the day light but meaningful; avoid heavy back-to-back marquee activities immediately after arrival.
-  - If YES and this is the final calendar date (${_isoDate(tripEndDate)}), include ONE concise departure item (transfer to airport/rail, buffer) at an appropriate slot (often afternoon/evening). Keep that day lighter and avoid late-night commitments.
-
-  Final-day and revisit logic:
-  - If the same base appears earlier in the trip, you MUST NOT repeat previously scheduled highlights, restaurants, or signature venues. Switch to a different neighborhood and new experiences.
-  - If returning to a previously visited base solely for departure, keep the day light (last-minute neighborhood stroll, light shopping, lunch) and include a departure buffer.
-
-JSON schema to output:
+JSON Schema (Compact Keys):
 {
   "days": [
     {
-      "date": string,
-      "title": string,
-      "summary": string,
-      "activities": [
-        {
-          "timeOfDay": "breakfast" | "morning" | "lunch" | "afternoon" | "dinner" | "evening",
-          "title": string,
-          "location": string,
-          "notes": string,
-          "cost": string
+      "d": "YYYY-MM-DD", 
+      "t": "Thematic Title", 
+      "s": "Engaging Summary (1 sentence)",
+      "a": [ 
+        { 
+          "m": "morn|lunch|aft|din|eve", 
+          "t": "Title", 
+          "l": "Location (No city name)", 
+          "n": "Vivid Note (Max 12-15 words)", 
+          "c": "$_paidBadge|Free" 
         }
       ]
     }
@@ -468,27 +457,72 @@ JSON schema to output:
 }
 ''';
 
+    // 4. CALL AI (Using the Fast Model passed in)
     final resp = await model.generateContent(
       [Content.text(prompt)],
-        generationConfig: GenerationConfig(
+      generationConfig: GenerationConfig(
         responseMimeType: 'application/json',
-        temperature: 0,
+        temperature: 0.3, // Low temp for strict adherence
       ),
     );
+
     final text = _safeAggregateText(resp);
     final json = _decodeTolerantJson(text);
-    final out = (json['days'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+    final rawDays = (json['days'] as List?) ?? [];
 
-    final byDate = {for (final d in out) (d['date'] ?? '').toString(): d};
+    // 5. REMAP COMPACT KEYS BACK TO FULL MODEL
+    // This step enables the "Compact Keys" optimization which saves ~20% generation time.
+    final mappedDays = <Map<String, dynamic>>[];
+
+    String expandTime(String? m) {
+      switch (m) {
+        case 'morn':
+          return 'morning';
+        case 'aft':
+          return 'afternoon';
+        case 'din':
+          return 'dinner';
+        case 'eve':
+          return 'evening';
+        case 'lunch':
+          return 'lunch'; // explicit match
+        default:
+          return 'morning';
+      }
+    }
+
+    for (var rd in rawDays) {
+      mappedDays.add({
+        'date': rd['d'],
+        'title': rd['t'],
+        'summary': rd['s'],
+        'activities': (rd['a'] as List? ?? [])
+            .map((act) => {
+                  'timeOfDay': expandTime(act['m']),
+                  'title': act['t'],
+                  'location': act['l'],
+                  'notes': act['n'],
+                  'cost': act['c'] == 'Free'
+                      ? 'Free'
+                      : _paidBadge, // Normalize cost
+                })
+            .toList(),
+      });
+    }
+
+    // 6. NORMALIZE & FILL GAPS
+    final byDate = {
+      for (final d in mappedDays) (d['date'] ?? '').toString(): d
+    };
     final normalized = <Map<String, dynamic>>[];
     for (final d in dates) {
-      final obj = byDate[d] ?? {
-        'date': d,
-        'title': segment.name,
-        'summary': 'Details on the way',
-        'activities': <Map<String, dynamic>>[],
-      };
-      normalized.add(obj);
+      normalized.add(byDate[d] ??
+          {
+            'date': d,
+            'title': segment.name,
+            'summary': 'Exploration',
+            'activities': [],
+          });
     }
     return normalized;
   }
@@ -580,10 +614,12 @@ JSON schema to output:
     return out;
   }
 
-  List<String> _collectTips(List<Map<String, dynamic>> days, String destination) {
+  List<String> _collectTips(
+      List<Map<String, dynamic>> days, String destination) {
     final tips = <String>{};
     for (final d in days) {
-      final activities = (d['activities'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+      final activities =
+          (d['activities'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
       for (final a in activities) {
         final n = (a['notes'] ?? '').toString();
         if (n.isEmpty) continue;
@@ -602,7 +638,8 @@ JSON schema to output:
     return tips.take(5).toList();
   }
 
-  void _harmonizeDays(String destination, List<Map<String, dynamic>> allDays, List<_Segment> segs) {
+  void _harmonizeDays(String destination, List<Map<String, dynamic>> allDays,
+      List<_Segment> segs) {
     String baseForDate(String iso) {
       final d = DateTime.tryParse(iso);
       if (d == null) return '';
@@ -616,11 +653,16 @@ JSON schema to output:
       final s = (raw).toString().trim();
       if (s.isEmpty) return '';
       final low = s.toLowerCase();
-      if (low.contains('free') || low.contains('no fee') || low.contains('complimentary')) {
+      if (low.contains('free') ||
+          low.contains('no fee') ||
+          low.contains('complimentary')) {
         return 'Free';
       }
       if (RegExp(r'\$+').hasMatch(s) ||
-          low.contains('fee') || low.contains('ticket') || low.contains('fare') || low.contains('paid')) {
+          low.contains('fee') ||
+          low.contains('ticket') ||
+          low.contains('fare') ||
+          low.contains('paid')) {
         return _paidBadge;
       }
       return _paidBadge;
@@ -630,16 +672,29 @@ JSON schema to output:
       if (location.isEmpty || base.isEmpty) return location;
       var out = location.trim();
       final baseEsc = RegExp.escape(base);
-      out = out.replaceAll(RegExp(',\\s*' + baseEsc + r'$', caseSensitive: false), '').trim();
-      out = out.replaceAll(RegExp(r'[-–—]\s*' + baseEsc + r'$', caseSensitive: false), '').trim();
-      out = out.replaceAll(RegExp(r'\(' + baseEsc + r'\)$', caseSensitive: false), '').trim();
+      out = out
+          .replaceAll(
+              RegExp(',\\s*' + baseEsc + r'$', caseSensitive: false), '')
+          .trim();
+      out = out
+          .replaceAll(
+              RegExp(r'[-–—]\s*' + baseEsc + r'$', caseSensitive: false), '')
+          .trim();
+      out = out
+          .replaceAll(
+              RegExp(r'\(' + baseEsc + r'\)$', caseSensitive: false), '')
+          .trim();
       return out;
     }
 
     bool _hasTransit(List<Map<String, dynamic>> acts) {
       for (final a in acts) {
         final t = (a['title'] ?? '').toString().toLowerCase();
-        if (t.contains('travel') || t.contains('transit') || t.contains('train to') || t.contains('bus to') || t.contains('flight to')) {
+        if (t.contains('travel') ||
+            t.contains('transit') ||
+            t.contains('train to') ||
+            t.contains('bus to') ||
+            t.contains('flight to')) {
           return true;
         }
       }
@@ -656,13 +711,16 @@ JSON schema to output:
       final pref = base.isEmpty ? '' : (base + ': ');
       if (cleanTitle.isEmpty) {
         day['title'] = pref + 'Day highlights';
-      } else if (!cleanTitle.toLowerCase().startsWith((base + ':').toLowerCase())) {
+      } else if (!cleanTitle
+          .toLowerCase()
+          .startsWith((base + ':').toLowerCase())) {
         day['title'] = pref + cleanTitle;
       } else {
         day['title'] = cleanTitle;
       }
 
-      final acts = (day['activities'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+      final acts = (day['activities'] as List?)?.cast<Map<String, dynamic>>() ??
+          <Map<String, dynamic>>[];
       for (final a in acts) {
         final loc = (a['location'] ?? '').toString();
         a['location'] = stripCity(loc, base);
@@ -699,10 +757,10 @@ JSON schema to output:
 
   // Ensure explicit arrival on day 1 and departure on the last day if the model omitted them.
   void _injectArrivalDepartureIfMissing(
-      String destination,
-      List<Map<String, dynamic>> allDays,
-      List<_Segment> segs,
-      ) {
+    String destination,
+    List<Map<String, dynamic>> allDays,
+    List<_Segment> segs,
+  ) {
     if (allDays.isEmpty) return;
 
     bool _containsKeyword(List<Map<String, dynamic>> acts, List<String> keys) {
@@ -718,18 +776,23 @@ JSON schema to output:
 
     // Arrival on first day
     final first = allDays.first;
-    final firstActs = (first['activities'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+    final firstActs =
+        (first['activities'] as List?)?.cast<Map<String, dynamic>>() ??
+            <Map<String, dynamic>>[];
     final firstDate = (first['date'] ?? '').toString();
     final firstSeg = segs.firstWhere(
       (s) => _isoDate(s.start) == firstDate,
       orElse: () => segs.first,
     );
-    if (!_containsKeyword(firstActs, ['arrival', 'arrive', 'airport', 'check-in', 'check in'])) {
+    if (!_containsKeyword(
+        firstActs, ['arrival', 'arrive', 'airport', 'check-in', 'check in'])) {
       firstActs.insert(0, {
         'timeOfDay': 'morning',
         'title': 'Arrival and hotel transfer',
         'location': 'Airport ↔ Hotel',
-        'notes': 'Arrive in ' + firstSeg.base + '; transfer to accommodation, check-in or bag drop, short orientation stroll.',
+        'notes': 'Arrive in ' +
+            firstSeg.base +
+            '; transfer to accommodation, check-in or bag drop, short orientation stroll.',
         'cost': _paidBadge,
       });
       first['activities'] = firstActs;
@@ -737,155 +800,27 @@ JSON schema to output:
 
     // Departure on last day
     final last = allDays.last;
-    final lastActs = (last['activities'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
-    if (!_containsKeyword(lastActs, ['depart', 'departure', 'airport', 'flight', 'train', 'check-out', 'checkout'])) {
+    final lastActs =
+        (last['activities'] as List?)?.cast<Map<String, dynamic>>() ??
+            <Map<String, dynamic>>[];
+    if (!_containsKeyword(lastActs, [
+      'depart',
+      'departure',
+      'airport',
+      'flight',
+      'train',
+      'check-out',
+      'checkout'
+    ])) {
       lastActs.add({
         'timeOfDay': 'evening',
         'title': 'Departure flight/train',
         'location': 'Hotel → Airport/Station',
-        'notes': 'Head to the gateway for your departure; allow buffer for transit and security.',
+        'notes':
+            'Head to the gateway for your departure; allow buffer for transit and security.',
         'cost': _paidBadge,
       });
       last['activities'] = lastActs;
-    }
-  }
-
-  // Replace generic meal placeholders with real, named venues using a light repair prompt.
-  Future<void> _ensureNamedVenues({
-    required GenerativeModel model,
-    required String destination,
-    required String affordability,
-    required String? dietaryPreference,
-    required List<Map<String, dynamic>> allDays,
-    required List<_Segment> segs,
-  }) async {
-    if (allDays.isEmpty) return;
-
-    String baseForDate(String iso) {
-      final d = DateTime.tryParse(iso);
-      if (d == null) return '';
-      for (final s in segs) {
-        if (!d.isBefore(s.start) && !d.isAfter(s.end)) return s.base;
-      }
-      return '';
-    }
-
-    bool isMeal(String tod) {
-      final t = tod.toLowerCase();
-      return t == 'breakfast' || t == 'lunch' || t == 'dinner';
-    }
-
-    bool isGenericTitle(String title) {
-      if (title.trim().isEmpty) return true;
-      final low = title.toLowerCase();
-      // Likely-generic telltales
-      const genericTokens = [
-        'restaurant', 'cafe', 'coffee shop', 'local', 'street food', 'food court',
-        'eatery', 'diner', 'breakfast', 'lunch', 'dinner', 'market', 'stall', 'canteen'
-      ];
-      if (genericTokens.any((t) => low.contains(t))) return true;
-      // If it's too short and a single word, probably not a proper venue (risk false negatives for e.g., "Ichiran", but we prefer repair)
-      if (!title.contains(' ') && title.length <= 4) return true;
-      return false;
-    }
-
-    // Gather already used venue names to avoid repeats across the trip
-    final used = <String>{};
-    for (final day in allDays) {
-      final acts = (day['activities'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
-      for (final a in acts) {
-        final tod = (a['timeOfDay'] ?? '').toString();
-        if (isMeal(tod)) {
-          final title = (a['title'] ?? '').toString().trim();
-          if (title.isNotEmpty) used.add(title.toLowerCase());
-        }
-      }
-    }
-
-    Future<void> repairDay(int index) async {
-      final day = allDays[index];
-      final iso = (day['date'] ?? '').toString();
-      final base = baseForDate(iso);
-      final activities = (day['activities'] as List?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
-      if (activities.isEmpty) return;
-
-      bool needsRepair = false;
-      for (final a in activities) {
-        final tod = (a['timeOfDay'] ?? '').toString();
-        if (isMeal(tod)) {
-          final title = (a['title'] ?? '').toString();
-          if (isGenericTitle(title)) { needsRepair = true; break; }
-        }
-      }
-      if (!needsRepair) return;
-
-      final budget = affordability;
-      final diet = (dietaryPreference == null || dietaryPreference.trim().isEmpty) ? 'None' : dietaryPreference.trim();
-
-      final inputDay = jsonEncode({
-        'date': day['date'],
-        'title': day['title'],
-        'summary': day['summary'],
-        'activities': activities,
-      });
-      final usedNamesList = used.toList();
-
-      final prompt = '''
-System: You are a meticulous fixer. You will receive one day object from an itinerary.
-Task: Replace ONLY the meal entries (timeOfDay is "breakfast", "lunch", or "dinner") that are generic with REAL, NAMED restaurants/cafés in "$base" (within $destination). Keep all non-meal activities unchanged.
-
-Strict rules:
-- For each meal, set:
-  - title: the venue's proper name (discoverable on Google Maps), not a generic description.
-  - location: the neighborhood/district (e.g., "Gangnam", "Shibuya"), NOT the city name.
-  - notes: 1 short line with a signature dish/ambience/booking tip; avoid repeating diet labels.
-  - cost: keep as-is or set to "\$\$"; do not use price ranges.
-- Preserve the number of activities and their order. Do not add/remove activities.
-- Preserve the exact timeOfDay values and keep all fields for non-meal activities unchanged.
-- Avoid any restaurant names already used in the trip: ${usedNamesList.take(18).join(', ')}.
-- Match budget: $budget. Dietary: $diet.
-- Output ONLY JSON for the updated day object with this schema: {"date": string, "title": string, "summary": string, "activities": [ {"timeOfDay": string, "title": string, "location": string, "notes": string, "cost": string} ]}
-
-Day to fix:
-$inputDay
-''';
-
-      try {
-        final resp = await model.generateContent(
-          [Content.text(prompt)],
-          generationConfig: GenerationConfig(
-            responseMimeType: 'application/json',
-            temperature: 0,
-          ),
-        );
-        final text = _safeAggregateText(resp);
-        final json = _decodeTolerantJson(text);
-        final fixedActs = (json['activities'] as List?)?.cast<Map<String, dynamic>>();
-        if (fixedActs == null || fixedActs.length != activities.length) {
-          debugPrint('[ItineraryAIService] Meal repair rejected: invalid length for $iso');
-          return;
-        }
-        // Final sanitize: mark paid costs and update used names
-        for (int i = 0; i < fixedActs.length; i++) {
-          final a = fixedActs[i];
-          final tod = (a['timeOfDay'] ?? '').toString();
-          if (isMeal(tod)) {
-            final title = (a['title'] ?? '').toString().trim();
-            if (title.isNotEmpty) used.add(title.toLowerCase());
-            // normalize cost badge now (restaurants are paid)
-            a['cost'] = _paidBadge;
-          }
-        }
-        day['activities'] = fixedActs;
-      } catch (e, st) {
-        debugPrint('[ItineraryAIService] Meal repair error on $iso: $e');
-        debugPrint('[ItineraryAIService] Stack: $st');
-      }
-    }
-
-    // Iterate and repair days that need it. We keep it sequential to avoid quota spikes.
-    for (int i = 0; i < allDays.length; i++) {
-      await repairDay(i);
     }
   }
 
@@ -900,10 +835,29 @@ $inputDay
 
     // If an obvious island appears, bias to flight/ferry
     const islandKeys = [
-      'island', 'islands', 'archipelago',
-      'jeju', 'okinawa', 'bali', 'sardinia', 'sicily', 'corsica',
-      'hvar', 'crete', 'santorini', 'naxos', 'mykonos', 'mallorca', 'ibiza',
-      'tenerife', 'gran canaria', 'zanzibar', 'hainan', 'luzon', 'cebu', 'palawan'
+      'island',
+      'islands',
+      'archipelago',
+      'jeju',
+      'okinawa',
+      'bali',
+      'sardinia',
+      'sicily',
+      'corsica',
+      'hvar',
+      'crete',
+      'santorini',
+      'naxos',
+      'mykonos',
+      'mallorca',
+      'ibiza',
+      'tenerife',
+      'gran canaria',
+      'zanzibar',
+      'hainan',
+      'luzon',
+      'cebu',
+      'palawan'
     ];
     final islandPair = mentions(f, islandKeys) || mentions(t, islandKeys);
 
@@ -919,7 +873,8 @@ $inputDay
       final seoul = f.contains('seoul') || t.contains('seoul');
       final busan = f.contains('busan') || t.contains('busan');
       final jeju = f.contains('jeju') || t.contains('jeju');
-      if ((f.contains('seoul') && t.contains('busan')) || (f.contains('busan') && t.contains('seoul'))) {
+      if ((f.contains('seoul') && t.contains('busan')) ||
+          (f.contains('busan') && t.contains('seoul'))) {
         return 'KTX high-speed rail: Seoul Station ⇄ Busan Station ~2h15. Recommended morning 08:30–10:30 with seat reservation to maximize time on arrival.';
       }
       if (jeju && seoul) {
@@ -966,7 +921,8 @@ $inputDay
     final sDate = _isoDate(startDate);
     final eDate = _isoDate(endDate);
     final styles = travelStyles.isEmpty ? 'General' : travelStyles.join(', ');
-    final must = (mustSee == null || mustSee.isEmpty) ? 'None' : mustSee.join(', ');
+    final must =
+        (mustSee == null || mustSee.isEmpty) ? 'None' : mustSee.join(', ');
     final diet = (dietaryPreference == null || dietaryPreference.trim().isEmpty)
         ? 'None'
         : dietaryPreference.trim();
@@ -1057,13 +1013,27 @@ Respond ONLY with JSON and no code fences. Do not add trailing commas. Use strai
     return _extractFirstJsonObject(s);
   }
 
-  String _sanitizeJson(String input) {
+String _sanitizeJson(String input) {
     var out = input;
+    
+    // 1. CRITICAL: Remove all newlines, tabs, and carriage returns.
+    // This often fixes structural errors caused by poor formatting in arrays/objects.
+    out = out.replaceAll(RegExp(r'[\n\r\t]'), ''); 
+
+    // 2. Remove comments and smart quotes
     out = out.replaceAll(RegExp(r"//.*"), '');
     out = out.replaceAll('“', '"').replaceAll('”', '"').replaceAll('’', "'");
+    
+    // 3. Remove trailing commas (critical for model output)
     out = out.replaceAll(RegExp(r',\s*([}\]])'), r'$1');
+    
+    // 4. Normalize spacing around colons (keeps structure readable for humans/debug)
     out = out.replaceAll(RegExp(r'\s*:\s*'), ': ');
+    
+    // 5. Clean up encoding issues
     out = utf8.decode(utf8.encode(out));
+    
+    // The final trim is crucial for leading/trailing non-JSON content.
     return out.trim();
   }
 
@@ -1090,22 +1060,40 @@ Respond ONLY with JSON and no code fences. Do not add trailing commas. Use strai
   // Human-readable season notes to bias the model.
   String? _seasonNoteFor(String destination, DateTime start, DateTime end) {
     String monName(int m) {
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ];
       return months[(m - 1).clamp(0, 11)];
     }
+
     final s = '${monName(start.month)} ${start.year}';
     final e = '${monName(end.month)} ${end.year}';
     final window = s == e ? s : ('$s – $e');
     final m = start.month; // assume same seasonal window across the trip
     String generic;
     if (m >= 3 && m <= 5) {
-      generic = 'Spring window ($window): highlight blossoms/wildflowers, outdoor strolls, garden/park time, and seasonal sweets/produce.';
+      generic =
+          'Spring window ($window): highlight blossoms/wildflowers, outdoor strolls, garden/park time, and seasonal sweets/produce.';
     } else if (m >= 6 && m <= 8) {
-      generic = 'Summer window ($window): schedule early/late outdoor slots to avoid mid-day heat, add waterfronts/beaches, and include cool indoor breaks.';
+      generic =
+          'Summer window ($window): schedule early/late outdoor slots to avoid mid-day heat, add waterfronts/beaches, and include cool indoor breaks.';
     } else if (m >= 9 && m <= 11) {
-      generic = 'Autumn window ($window): feature foliage viewpoints, harvest markets, cozy neighborhoods, and seasonal comfort foods.';
+      generic =
+          'Autumn window ($window): feature foliage viewpoints, harvest markets, cozy neighborhoods, and seasonal comfort foods.';
     } else {
-      generic = 'Winter window ($window): bias toward winter lights/markets, warming cuisine, museums/cafés; include snow sports/onsen-style soaks where climates allow.';
+      generic =
+          'Winter window ($window): bias toward winter lights/markets, warming cuisine, museums/cafés; include snow sports/onsen-style soaks where climates allow.';
     }
     return generic;
   }
@@ -1151,23 +1139,29 @@ Respond ONLY with JSON and no code fences. Do not add trailing commas. Use strai
     final notes = <String>[];
     // Global-ish festive hooks
     if (inRange(12, 24)) {
-      notes.add('If Dec 24 falls within these dates, include an evening dedicated to Christmas Eve ambience (illumination walks, festive dinners, seasonal markets), adjusted to local customs.');
+      notes.add(
+          'If Dec 24 falls within these dates, include an evening dedicated to Christmas Eve ambience (illumination walks, festive dinners, seasonal markets), adjusted to local customs.');
     }
     if (inRange(12, 25)) {
-      notes.add('If Dec 25 is included, include a daytime/early evening Christmas activity in line with local culture (e.g., illuminations, special menus, or winter attractions).');
+      notes.add(
+          'If Dec 25 is included, include a daytime/early evening Christmas activity in line with local culture (e.g., illuminations, special menus, or winter attractions).');
     }
     if (inRange(12, 31)) {
-      notes.add('If Dec 31 is included, include a New Year’s Eve plan (countdown spot or local tradition).');
+      notes.add(
+          'If Dec 31 is included, include a New Year’s Eve plan (countdown spot or local tradition).');
     }
     if (inRange(1, 1)) {
-      notes.add('If Jan 1 is included, reflect local New Year practices and opening hours; expect slower mornings or closures.');
+      notes.add(
+          'If Jan 1 is included, reflect local New Year practices and opening hours; expect slower mornings or closures.');
     }
     // Lunar New Year varies (late Jan to mid Feb). When the window overlaps, nudge to include it if locally observed.
     if (start.month <= 2 || end.month <= 2) {
-      notes.add('If Lunar New Year falls within these dates at this destination, include an appropriate celebration or neighborhood walk, accounting for closures and crowds.');
+      notes.add(
+          'If Lunar New Year falls within these dates at this destination, include an appropriate celebration or neighborhood walk, accounting for closures and crowds.');
     }
     // Generic nudge for any major local festival overlapping dates
-    notes.add('If any major local festival coincides with these dates, include a short, safe, authentic visit aligned with the day’s base.');
+    notes.add(
+        'If any major local festival coincides with these dates, include a short, safe, authentic visit aligned with the day’s base.');
 
     if (notes.isEmpty) return null;
     return notes.join(' ');

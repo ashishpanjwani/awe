@@ -148,6 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         InkWell(
           onTap: onTap,
+          splashColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(

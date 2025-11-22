@@ -164,7 +164,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           const Spacer(flex: 2),
                           // Sign-in button (standardized CTA)
                           CtaButton(
-                            label: _isLoading ? 'Signing in...' : 'Hop In',
+                            label: _isLoading ? 'Logging in...' : 'Continue with Google',
                             onPressed: _handleGoogleSignIn,
                             loading: _isLoading,
                             leading: _isLoading
