@@ -164,7 +164,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                           final aboutText = state.description.trim();
                           final paras = _splitIntoFriendlyParagraphs(aboutText);
 
-                          return Column(
+                            return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _Card(
@@ -173,28 +173,52 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                                   children: [
                                     const _SectionTitle(label: 'About'),
                                     const SizedBox(height: 8),
-                                    if (state.loadingDescription) ...[
-                                      AgenticSteps(currentStep: state.aiStepIndex),
-                                      const SizedBox(height: 12),
-                                    ],
-                                    if (paras.isEmpty)
-                                      Text(
-                                        state.loadingDescription ? 'Warming up the details…' : 'Details are on the way…',
-                                        style: GoogleFonts.raleway(
-                                            color: FlowColors.textGrey),
-                                      )
-                                    else ...[
-                                      for (int i = 0; i < paras.length; i++) ...[
-                                        Text(
-                                          paras[i],
-                                          style: GoogleFonts.raleway(
-                                              color: FlowColors.textLight,
-                                              height: 1.5),
-                                        ),
-                                        if (i != paras.length - 1)
-                                          const SizedBox(height: 8),
-                                      ]
-                                    ],
+                                      // Desired behavior:
+                                      // - Show AgenticSteps during loading
+                                      // - When steps are completed (aiStepIndex >= 4) but the text hasn't arrived yet (paras.isEmpty),
+                                      //   show BOTH the checked steps and the warming message together.
+                                      // - Once paragraphs arrive, show only the paragraphs.
+                                      Builder(builder: (context) {
+                                        final showSteps = state.loadingDescription ||
+                                            (state.aiStepIndex >= 4 && paras.isEmpty);
+                                        final showWarming = (state.aiStepIndex >= 4) && paras.isEmpty;
+
+                                        if (paras.isNotEmpty) {
+                                          return Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              for (int i = 0; i < paras.length; i++) ...[
+                                                Text(
+                                                  paras[i],
+                                                  style: GoogleFonts.raleway(
+                                                      color: FlowColors.textLight,
+                                                      height: 1.5),
+                                                ),
+                                                if (i != paras.length - 1)
+                                                  const SizedBox(height: 8),
+                                              ]
+                                            ],
+                                          );
+                                        }
+
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (showSteps) ...[
+                                              AgenticSteps(
+                                                currentStep: state.aiStepIndex,
+                                              ),
+                                              const SizedBox(height: 12),
+                                            ],
+                                            if (showWarming)
+                                              Text(
+                                                'Warming up the details…',
+                                                style: GoogleFonts.raleway(
+                                                    color: FlowColors.textGrey),
+                                              ),
+                                          ],
+                                        );
+                                      }),
                                   ],
                                 ),
                               ),
@@ -238,16 +262,35 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
               p.generatingItinerary != n.generatingItinerary ||
               p.loadingDescription != n.loadingDescription ||
               p.description != n.description,
-          builder: (context, state) {
-            final hasDescription = state.description.trim().isNotEmpty;
-            final enabled = !state.generatingItinerary && !state.loadingDescription && hasDescription;
-            return CtaButton(
-              label: state.generatingItinerary ? 'Generating…' : 'Generate Itinerary',
-              onPressed: enabled ? _onGenerate : null,
-              loading: state.generatingItinerary,
-              leadingIcon: state.generatingItinerary ? null : Icons.auto_awesome,
-            );
-          },
+            builder: (context, state) {
+              final hasDescription = state.description.trim().isNotEmpty;
+              final canGenerate = !state.generatingItinerary && !state.loadingDescription && hasDescription;
+
+              if (state.generatingItinerary) {
+                return CtaButton(
+                  label: 'Generating…',
+                  onPressed: () {},
+                  loading: true,
+                );
+              }
+
+              // Always show the primary CTA. If tapped too early, show a snackbar.
+              return CtaButton(
+                label: 'Generate Itinerary',
+                leadingIcon: Icons.auto_awesome,
+                onPressed: () {
+                  if (!canGenerate) {
+                    final messenger = ScaffoldMessenger.of(context);
+                    messenger.hideCurrentSnackBar();
+                    messenger.showSnackBar(const SnackBar(
+                      content: Text('Details are being generated. Please wait — then you can build your itinerary.'),
+                    ));
+                    return;
+                  }
+                  _onGenerate();
+                },
+              );
+            },
         ),
       ),
     );
@@ -794,9 +837,11 @@ class AgenticSteps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final steps = List<String>.from(_steps);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(_steps.length, (i) {
+      children: List.generate(steps.length, (i) {
         final status = _stepStatus(i, currentStep);
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -806,7 +851,7 @@ class AgenticSteps extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _steps[i],
+                  steps[i],
                   style: GoogleFonts.raleway(
                     color: status == _StepStatus.pending
                         ? FlowColors.textGrey

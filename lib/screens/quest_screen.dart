@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:wanderwell/services/location_service.dart';
 import 'package:wanderwell/models/quest_models.dart';
 import 'package:wanderwell/services/quest_service.dart';
 import 'package:wanderwell/theme.dart';
@@ -16,6 +17,7 @@ class _QuestScreenState extends State<QuestScreen> {
   bool _loading = true;
   bool _busyQuest = false;
   bool _busyMicro = false;
+  bool _locationOff = false;
 
   @override
   void initState() {
@@ -25,11 +27,39 @@ class _QuestScreenState extends State<QuestScreen> {
 
   Future<void> _load({bool showSpinner = true}) async {
     if (showSpinner) setState(() => _loading = true);
+    // Check precise location availability (no IP fallback)
+    try {
+      final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
+      _locationOff = loc == null;
+    } catch (_) {
+      _locationOff = true;
+    }
     final data = await QuestService().getOrCreateToday();
     setState(() {
       _daily = data;
       _loading = false;
     });
+  }
+
+  Future<void> _enableLocationAndRefresh() async {
+    try {
+      final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
+      setState(() {
+        _locationOff = loc == null;
+      });
+      if (!_locationOff) {
+        // Regenerate both parts to personalize with location
+        await QuestService().resetQuest();
+        await QuestService().resetMicroAdventure();
+        await _load(showSpinner: false);
+        _toast('Personalized to your location');
+      } else {
+        _toast('Location is still off');
+      }
+    } catch (e) {
+      debugPrint('[QuestScreen] enable location failed: $e');
+      _toast('Could not enable location');
+    }
   }
 
   void _toast(String msg) {
@@ -69,6 +99,33 @@ class _QuestScreenState extends State<QuestScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (_locationOff) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: FlowColors.cardSurfaceDark,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.location_disabled, color: Colors.amberAccent),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Location is off — showing general ideas for your area.',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FlowColors.textLight),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _enableLocationAndRefresh,
+                                  child: const Text('Enable'),
+                                )
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         _QuestCard(
                           label: 'Quest of the Moment',
                           title: _daily!.quest.title,

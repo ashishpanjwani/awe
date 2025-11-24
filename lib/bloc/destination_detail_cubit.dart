@@ -38,7 +38,15 @@ class DestinationDetailCubit extends Cubit<DestinationDetailState> {
       for (int i = 0; i < 4 && !cancelled; i++) {
         await Future.delayed(Duration(milliseconds: i == 0 ? 200 : 900));
         if (cancelled) break;
-        emit(state.copyWith(aiStepIndex: i + 1));
+        // When the final visual step completes (i == 3 -> step 4),
+        // we immediately flip loadingDescription to false so the UI can
+        // show the brief "Warming up the details…" state if the text
+        // hasn't started streaming yet.
+        if (i == 3) {
+          emit(state.copyWith(aiStepIndex: 4, loadingDescription: false));
+        } else {
+          emit(state.copyWith(aiStepIndex: i + 1));
+        }
       }
     }
 

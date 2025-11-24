@@ -6,6 +6,7 @@ import 'package:wanderwell/firebase_options.dart';
 import 'package:wanderwell/theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:wanderwell/bloc/auth_cubit.dart';
+import 'package:wanderwell/widgets/app_viewport.dart';
 import 'package:wanderwell/screens/splash_screen.dart';
 import 'package:wanderwell/screens/itinerary_builder_screen.dart';
 import 'package:wanderwell/screens/loading_screen.dart';
@@ -44,6 +45,8 @@ class FlowApp extends StatelessWidget {
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: ThemeMode.dark, // Force dark mode for the travel theme
+        // Wrap every screen in a centered, mobile-width viewport for desktop/tablet
+        builder: (context, child) => AppViewport(child: child),
         home: const SplashScreen(),
         routes: {
           '/itinerary': (context) => const ItineraryBuilderScreen(),

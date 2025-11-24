@@ -7,6 +7,7 @@ import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/foundation.dart';
 import 'package:wanderwell/models/quest_models.dart';
 import 'package:wanderwell/services/location_service.dart';
+import 'package:wanderwell/services/weather_service.dart';
 import 'package:wanderwell/utils/app_utils.dart';
 
 enum QuestEntryType { quest, microAdventure }
@@ -215,7 +216,7 @@ class QuestService {
   // ----- Generation helpers (non-AI, contextual to location + light randomness) -----
   Future<String> _locationLabel() async {
     try {
-      final loc = await LocationService().getCurrentLocationWithName();
+      final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
       return loc?.name ?? 'your area';
     } catch (_) {
       return 'your area';
@@ -227,13 +228,36 @@ class QuestService {
 
   Future<DailyQuests> _generateDailyAI() async {
     final nowKey = AppUtils.todayKey();
-    final loc = await LocationService().getCurrentLocationWithName();
+    final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
     final place = loc?.name ?? 'your area';
     final lat = loc?.lat;
     final lon = loc?.lon;
 
+    // Lightweight real-world context for authenticity with minimal tokens
+    final now = DateTime.now();
+    final season = _seasonFor(now, lat: lat);
+    final dayPart = _dayPeriod(now);
+    final isWeekend = (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday);
+    String? weather;
+    try {
+      if (lat != null && lon != null) {
+        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
+        weather = w.condition; // e.g., Clear, Rain, Cloudy
+      }
+    } catch (_) {
+      // Ignore weather on failure
+    }
+
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
-    final prompt = _buildDailyPrompt(place: place, lat: lat, lon: lon);
+    final prompt = _buildDailyPrompt(
+      place: place,
+      lat: lat,
+      lon: lon,
+      season: season,
+      dayPart: dayPart,
+      isWeekend: isWeekend,
+      weather: weather,
+    );
     final resp = await model.generateContent(
       [Content.text(prompt)],
       generationConfig: GenerationConfig(
@@ -264,12 +288,30 @@ class QuestService {
   }
 
   Future<QuestOfTheMoment> _generateQuestAI({String? avoidTitle}) async {
-    final loc = await LocationService().getCurrentLocationWithName();
+    final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
     final place = loc?.name ?? 'your area';
     final lat = loc?.lat;
     final lon = loc?.lon;
+    final now = DateTime.now();
+    final season = _seasonFor(now, lat: lat);
+    final dayPart = _dayPeriod(now);
+    String? weather;
+    try {
+      if (lat != null && lon != null) {
+        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
+        weather = w.condition;
+      }
+    } catch (_) {}
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
-    final prompt = _buildQuestOnlyPrompt(place: place, lat: lat, lon: lon, avoidTitle: avoidTitle);
+    final prompt = _buildQuestOnlyPrompt(
+      place: place,
+      lat: lat,
+      lon: lon,
+      avoidTitle: avoidTitle,
+      season: season,
+      dayPart: dayPart,
+      weather: weather,
+    );
     // Up to 3 attempts to avoid repeating titles
     for (int attempt = 0; attempt < 3; attempt++) {
       final resp = await model.generateContent(
@@ -298,12 +340,30 @@ class QuestService {
   }
 
   Future<MicroAdventure> _generateMicroAI({String? avoidTitle}) async {
-    final loc = await LocationService().getCurrentLocationWithName();
+    final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
     final place = loc?.name ?? 'your area';
     final lat = loc?.lat;
     final lon = loc?.lon;
+    final now = DateTime.now();
+    final season = _seasonFor(now, lat: lat);
+    final dayPart = _dayPeriod(now);
+    String? weather;
+    try {
+      if (lat != null && lon != null) {
+        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
+        weather = w.condition;
+      }
+    } catch (_) {}
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
-    final prompt = _buildMicroOnlyPrompt(place: place, lat: lat, lon: lon, avoidTitle: avoidTitle);
+    final prompt = _buildMicroOnlyPrompt(
+      place: place,
+      lat: lat,
+      lon: lon,
+      avoidTitle: avoidTitle,
+      season: season,
+      dayPart: dayPart,
+      weather: weather,
+    );
     for (int attempt = 0; attempt < 3; attempt++) {
       final resp = await model.generateContent(
         [Content.text(prompt)],
@@ -329,86 +389,132 @@ class QuestService {
     return _generateMicroAdventureAvoiding(titleContext, avoidTitle: avoidTitle);
   }
 
-  String _buildDailyPrompt({required String place, double? lat, double? lon}) {
+  String _buildDailyPrompt({
+    required String place,
+    double? lat,
+    double? lon,
+    required String season,
+    required String dayPart,
+    required bool isWeekend,
+    String? weather,
+  }) {
     final locLine = (lat != null && lon != null) ? '($lat,$lon)' : '';
+    final contextLine = 'Context: season=' + season + '; time=' + dayPart + '; ' + (isWeekend ? 'weekend' : 'weekday') + (weather != null ? '; weather=' + weather! : '') + '.';
     return '''
 System instruction: You are a mindful, safety-conscious local guide. Output ONLY a JSON object with this schema and nothing else.
 
-User request: Create a location-personalized daily quest and a 1-hour micro adventure for today in "$place" $locLine.
+User request: In "$place" $locLine. $contextLine Create a location-personalized daily quest and a distinct 1-hour micro adventure for today.
 
 JSON schema to output exactly:
 {
   "quest": {
-    "title": string,               // action + local hook, short
-    "steps": [string, string, string], // 3 concise, actionable steps
-    "reflectionPrompt": string     // 1 short reflective question
+    "title": string,               // one concrete local hook (e.g., riverfront, market street, old town)
+    "steps": [string, string, string], // 3 short, actionable steps with subtle specifics
+    "reflectionPrompt": string     // 1 concise reflective question
   },
   "microAdventure": {
-    "title": string,               // enticing, specific to $place
-    "description": string          // 2-3 sentences, safe and doable within 1 hour
+    "title": string,               // enticing, different angle from quest
+    "description": string          // exactly 2 sentences; feasible in ~60 minutes; safety-aware
   }
 }
 
 Rules:
-- Personalize to local neighborhoods or landmarks in $place; avoid hallucinating obscure spots.
-- Keep all strings concise, friendly, and in English. No emojis, no markdown.
-- Avoid imperative chains like "Option 1/2"; provide a single clear plan.
+- Personalize with generic-but-real anchors (riverfront, central market, main square, neighborhood park). Do NOT invent exact place names.
+- Be practical for $dayPart and ${isWeekend ? 'weekend' : 'weekday'}${weather != null ? ' in ' + weather!.toLowerCase() : ''}; adapt to $season (e.g., shade in summer, cozy indoor if rain).
+- Keep language concise, friendly, and in English. No emojis, no markdown. No lists beyond the 3 steps.
+- Provide one clear plan (no options), and make the quest and micro adventure distinct.
 ''';
   }
 
-  String _buildQuestOnlyPrompt({required String place, double? lat, double? lon, String? avoidTitle}) {
+  String _buildQuestOnlyPrompt({
+    required String place,
+    double? lat,
+    double? lon,
+    String? avoidTitle,
+    required String season,
+    required String dayPart,
+    String? weather,
+  }) {
     final locLine = (lat != null && lon != null) ? '($lat,$lon)' : '';
-    final avoid = (avoidTitle == null || avoidTitle.trim().isEmpty) ? '' : '\nAvoid repeating, paraphrasing, or using the same landmark/theme as: "$avoidTitle". Choose a different local hook.';
+    final avoid = (avoidTitle == null || avoidTitle.trim().isEmpty)
+        ? ''
+        : '\nAvoid repeating, paraphrasing, or using the same landmark/theme as: "$avoidTitle". Choose a different local hook.';
+    final wx = weather != null ? '; weather=$weather' : '';
     return '''
 System instruction: Output ONLY JSON for a single quest object.
-User request: Generate a concise, location-aware quest in "$place" $locLine.
+User request: "$place" $locLine. Context: season=$season; time=$dayPart$wx. Generate a concise, location-aware quest.
 Schema:
 {
   "title": string,
   "steps": [string, string, string],
   "reflectionPrompt": string
 }
-Rules: personalize to $place; keep steps actionable and short; no extra fields.$avoid
+Rules:
+- Title must mention one tangible anchor (e.g., riverwalk, central market, old town lane) without inventing exact names.
+- Steps are short, do-able, with tiny specifics (e.g., sit 10 min, notice smells). No more than 14 words each.
+- Keep it safety-conscious and friendly; English only; no extra fields.$avoid
 ''';
   }
 
-  String _buildMicroOnlyPrompt({required String place, double? lat, double? lon, String? avoidTitle}) {
+  String _buildMicroOnlyPrompt({
+    required String place,
+    double? lat,
+    double? lon,
+    String? avoidTitle,
+    required String season,
+    required String dayPart,
+    String? weather,
+  }) {
     final locLine = (lat != null && lon != null) ? '($lat,$lon)' : '';
-    final avoid = (avoidTitle == null || avoidTitle.trim().isEmpty) ? '' : '\nAvoid repeating, paraphrasing, or using the same landmark/theme as: "$avoidTitle". Use a different angle or area.';
+    final avoid = (avoidTitle == null || avoidTitle.trim().isEmpty)
+        ? ''
+        : '\nAvoid repeating, paraphrasing, or using the same landmark/theme as: "$avoidTitle". Use a different angle or area.';
+    final wx = weather != null ? '; weather=$weather' : '';
     return '''
 System instruction: Output ONLY JSON for a micro adventure object.
-User request: Create a 1-hour micro adventure suitable for today in "$place" $locLine.
+User request: "$place" $locLine. Context: season=$season; time=$dayPart$wx. Create a 1-hour micro adventure for today.
 Schema:
 {
   "title": string,
   "description": string
 }
-Rules: should be feasible within 60 minutes, low-cost or free, and safe. No extra keys.$avoid
+Rules:
+- Exactly 2 sentences; start with where to begin (generic anchor), then what to do.
+- Feasible in ~60 minutes, low-cost or free, and safe. Adjust for $dayPart${weather != null ? ' and ' + weather!.toLowerCase() : ''}.
+- Use generic-but-real anchors; do NOT invent precise place names; English only; no extra keys.$avoid
 ''';
   }
 
   QuestOfTheMoment _questFromLLM(Map<String, dynamic> json, {required String fallbackPlace}) {
-    final title = (json['title'] ?? '').toString().trim();
-    List<String> steps = (json['steps'] as List?)?.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList() ?? const <String>[];
+    final titleRaw = (json['title'] ?? '').toString().trim();
+    final title = _tightTitle(titleRaw.isEmpty ? 'Explore a corner of $fallbackPlace' : titleRaw);
+    List<String> steps = (json['steps'] as List?)
+            ?.map((e) => _tightLine(e.toString().trim()))
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        const <String>[];
     if (steps.length > 3) {
       steps = steps.take(3).toList();
     }
     if (steps.length < 2) {
       // Ensure UI has at least 2 items; add simple filler if needed
       while (steps.length < 2) {
-        steps.add('Spend 10 minutes observing your surroundings.');
+        steps.add('Sit 10 minutes; notice sounds and smells.');
       }
     }
-    final reflection = (json['reflectionPrompt'] ?? 'What surprised you today in $fallbackPlace?').toString().trim();
-    final t = title.isEmpty ? 'Explore a corner of $fallbackPlace' : title;
-    return QuestOfTheMoment(title: t, steps: steps, reflectionPrompt: reflection);
+    final reflection = _tightLine((json['reflectionPrompt'] ?? 'What surprised you today in $fallbackPlace?').toString().trim());
+    return QuestOfTheMoment(title: title, steps: steps, reflectionPrompt: reflection);
   }
 
   MicroAdventure _microFromLLM(Map<String, dynamic> json, {required String fallbackPlace}) {
-    final title = (json['title'] ?? '').toString().trim();
-    final desc = (json['description'] ?? '').toString().trim();
-    final t = title.isEmpty ? 'Golden Hour Walk' : title;
-    final d = desc.isEmpty ? 'Walk for 60 minutes in $fallbackPlace during golden hour. Notice colors, sounds, and textures.' : desc;
+    final titleRaw = (json['title'] ?? '').toString().trim();
+    final descRaw = (json['description'] ?? '').toString().trim();
+    final t = _tightTitle(titleRaw.isEmpty ? 'Golden Hour Walk' : titleRaw);
+    final d = _trimToTwoSentences(
+      descRaw.isEmpty
+          ? 'Start at the main square in $fallbackPlace. Stroll for an hour and notice colors, sounds, and textures.'
+          : descRaw,
+    );
     return MicroAdventure(title: t, description: d);
   }
 
@@ -431,6 +537,55 @@ Rules: should be feasible within 60 minutes, low-cost or free, and safe. No extr
     out = out.replaceAll(RegExp(r',\s*([}\]])'), r'$1');
     out = utf8.decode(utf8.encode(out));
     return out.trim();
+  }
+
+  // ---------- Compacting utilities to improve authenticity while staying concise ----------
+  String _tightTitle(String s) {
+    var t = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // Drop trailing punctuation in titles
+    t = t.replaceAll(RegExp(r'[\.!?]+$'), '');
+    // Light de-genericizing of very common openers
+    t = t.replaceFirst(RegExp(r'^(Explore|Discover|Experience)\b', caseSensitive: false), 'Stroll');
+    return t;
+  }
+
+  String _tightLine(String s) {
+    var out = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // Keep lines short to feel precise
+    const max = 120;
+    if (out.length > max) {
+      out = out.substring(0, max).replaceAll(RegExp(r'[ ,;:]+$'), '').trim();
+      out += '…';
+    }
+    return out;
+  }
+
+  String _trimToTwoSentences(String s) {
+    final text = s.replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    final parts = text.split(RegExp(r'(?<=[.!?])\s+'));
+    if (parts.length <= 2) return text;
+    return parts.take(2).join(' ');
+  }
+
+  String _seasonFor(DateTime date, {double? lat}) {
+    // Northern hemisphere default; flip by 6 months for southern
+    var m = date.month;
+    if (lat != null && lat < 0) {
+      m = ((m + 6 - 1) % 12) + 1; // rotate by 6 months
+    }
+    if (m >= 3 && m <= 5) return 'Spring';
+    if (m >= 6 && m <= 8) return 'Summer';
+    if (m >= 9 && m <= 11) return 'Autumn';
+    return 'Winter';
+  }
+
+  String _dayPeriod(DateTime date) {
+    final h = date.hour;
+    if (h < 5) return 'pre-dawn';
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    if (h < 21) return 'evening';
+    return 'night';
   }
 
   Future<DailyQuests> _generateDaily() async {

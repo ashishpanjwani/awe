@@ -14,7 +14,7 @@ class LocationService {
 
   final LocationServiceProvider _provider = LocationServiceProvider();
 
-  Future<({double lat, double lon, String name})?> getCurrentLocationWithName() async {
+  Future<({double lat, double lon, String name})?> getCurrentLocationWithName({bool allowIpFallback = true}) async {
     try {
       final pos = await _provider.getCurrentPosition();
       if (pos != null) {
@@ -22,11 +22,13 @@ class LocationService {
         return (lat: pos.lat, lon: pos.lon, name: name);
       }
 
-      // Fallback: approximate by IP if precise geolocation is unavailable/denied (Web safe)
-      final ipPos = await _ipGeolocate();
-      if (ipPos != null) {
-        debugPrint('[LocationService] Using approximate IP-based location: ${ipPos.name}');
-        return ipPos;
+      // Optional fallback: approximate by IP if precise geolocation is unavailable/denied
+      if (allowIpFallback) {
+        final ipPos = await _ipGeolocate();
+        if (ipPos != null) {
+          debugPrint('[LocationService] Using approximate IP-based location: ${ipPos.name}');
+          return ipPos;
+        }
       }
       return null;
     } catch (e, st) {

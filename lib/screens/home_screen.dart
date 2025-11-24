@@ -124,8 +124,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Ask for location and then load Weather and Destinations.
     try {
-      // Load location (requests permission if needed)
-      final location = await LocationService().getCurrentLocationWithName();
+      // Load location (requests permission if needed). Do NOT fall back to IP.
+      final location = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
 
       WeatherData? weather;
       if (location != null) {
@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _isLoading = true;
     });
     try {
-      final location = await LocationService().getCurrentLocationWithName();
+      final location = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
       WeatherData weather;
       if (location != null) {
         weather = await WeatherService().fetchWeatherAt(
