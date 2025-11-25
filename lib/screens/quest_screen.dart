@@ -125,10 +125,10 @@ class _QuestScreenState extends State<QuestScreen> {
                                         ?.copyWith(color: FlowColors.textLight),
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: _enableLocationAndRefresh,
-                                  child: const Text('Enable'),
-                                )
+                                // TextButton(
+                                //   onPressed: _enableLocationAndRefresh,
+                                //   child: const Text('Enable'),
+                                // )
                               ],
                             ),
                           ),
