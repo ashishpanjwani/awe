@@ -52,41 +52,6 @@ class TermsAndConditionsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Card(
-                color: FlowColors.surfaceDark,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Quick summary', style: theme.textTheme.titleMedium?.copyWith(color: FlowColors.textLight, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      Text('• By using Awe you accept these terms.'),
-                      Text('• Use the App responsibly; verify travel details independently.'),
-                      Text('• AI content is advisory — verify important facts.'),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          ElevatedButton(
-                            onPressed: () => _scrollToFullTerms(context),
-                            child: const Text('Read full terms'),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton.icon(
-                            onPressed: () => _contact(context),
-                            icon: const Icon(Icons.email_outlined),
-                            label: const Text('Contact'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
               Text('Terms & Conditions — Awe', style: theme.textTheme.titleLarge?.copyWith(color: FlowColors.textLight, fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
               Text('Effective date: $_effectiveDate', style: theme.textTheme.bodySmall?.copyWith(color: FlowColors.textGrey)),

@@ -70,7 +70,9 @@ class DefaultFirebaseOptions {
     messagingSenderId: '244656743763',
     projectId: 'flow-2538d',
     storageBucket: 'flow-2538d.firebasestorage.app',
+    androidClientId: '244656743763-400d8lj162c1sc7en2rg99uoik5aqgbu.apps.googleusercontent.com',
     iosClientId: '244656743763-9i82rkc9i3pfehg87gpfndd4ks8195c0.apps.googleusercontent.com',
     iosBundleId: 'com.flow.app',
   );
+
 }

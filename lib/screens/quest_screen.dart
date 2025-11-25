@@ -29,7 +29,8 @@ class _QuestScreenState extends State<QuestScreen> {
     if (showSpinner) setState(() => _loading = true);
     // Check precise location availability (no IP fallback)
     try {
-      final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
+      final loc = await LocationService()
+          .getCurrentLocationWithName(allowIpFallback: false);
       _locationOff = loc == null;
     } catch (_) {
       _locationOff = true;
@@ -43,7 +44,8 @@ class _QuestScreenState extends State<QuestScreen> {
 
   Future<void> _enableLocationAndRefresh() async {
     try {
-      final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
+      final loc = await LocationService()
+          .getCurrentLocationWithName(allowIpFallback: false);
       setState(() {
         _locationOff = loc == null;
       });
@@ -105,16 +107,22 @@ class _QuestScreenState extends State<QuestScreen> {
                             decoration: BoxDecoration(
                               color: FlowColors.cardSurfaceDark,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
+                              border: Border.all(
+                                  color: FlowColors.cardBorderDark
+                                      .withValues(alpha: 0.12)),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.location_disabled, color: Colors.amberAccent),
+                                const Icon(Icons.location_disabled,
+                                    color: Colors.amberAccent),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Location is off — showing general ideas for your area.',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: FlowColors.textLight),
+                                    'Location is off. Enable it to see ideas near you.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: FlowColors.textLight),
                                   ),
                                 ),
                                 TextButton(

@@ -65,8 +65,10 @@ class _WeatherCardState extends State<WeatherCard> {
       'thunderstorm',
       'fog',
     ];
-    final current = (_overrideWeather ?? widget.weather).condition.toLowerCase();
-    bool isDay = _overrideIsDay ?? (_overrideWeather?.isDay ?? widget.weather.isDay);
+    final current =
+        (_overrideWeather ?? widget.weather).condition.toLowerCase();
+    bool isDay =
+        _overrideIsDay ?? (_overrideWeather?.isDay ?? widget.weather.isDay);
     showModalBottomSheet(
       context: context,
       backgroundColor: FlowColors.cardSurfaceDark,
@@ -82,9 +84,13 @@ class _WeatherCardState extends State<WeatherCard> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Weather Debug', style: TextStyle(color: FlowColors.textLight, fontWeight: FontWeight.w700)),
+                    const Text('Weather Debug',
+                        style: TextStyle(
+                            color: FlowColors.textLight,
+                            fontWeight: FontWeight.w700)),
                     IconButton(
-                      icon: const Icon(Icons.refresh, color: FlowColors.textLight, size: 20),
+                      icon: const Icon(Icons.refresh,
+                          color: FlowColors.textLight, size: 20),
                       onPressed: () {
                         setState(() {
                           _overrideWeather = null;
@@ -102,7 +108,9 @@ class _WeatherCardState extends State<WeatherCard> {
                   children: [
                     for (final c in conditions)
                       ChoiceChip(
-                        label: Text(c, style: const TextStyle(color: FlowColors.textLight)),
+                        label: Text(c,
+                            style:
+                                const TextStyle(color: FlowColors.textLight)),
                         selected: current == c,
                         onSelected: (_) {
                           setState(() {
@@ -118,10 +126,12 @@ class _WeatherCardState extends State<WeatherCard> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Text('Time:', style: TextStyle(color: FlowColors.textGrey)),
+                    const Text('Time:',
+                        style: TextStyle(color: FlowColors.textGrey)),
                     const SizedBox(width: 8),
                     FilterChip(
-                      label: const Text('Day', style: TextStyle(color: FlowColors.textLight)),
+                      label: const Text('Day',
+                          style: TextStyle(color: FlowColors.textLight)),
                       selected: isDay,
                       onSelected: (_) {
                         setState(() {
@@ -133,7 +143,8 @@ class _WeatherCardState extends State<WeatherCard> {
                     ),
                     const SizedBox(width: 8),
                     FilterChip(
-                      label: const Text('Night', style: TextStyle(color: FlowColors.textLight)),
+                      label: const Text('Night',
+                          style: TextStyle(color: FlowColors.textLight)),
                       selected: !isDay,
                       onSelected: (_) {
                         setState(() {
@@ -164,7 +175,8 @@ class _WeatherCardState extends State<WeatherCard> {
       child: Stack(
         children: [
           // Background layer: only animate when we actually have weather and location is enabled
-          if (!showEnableLocation && effectiveWeather.condition.trim().isNotEmpty)
+          if (!showEnableLocation &&
+              effectiveWeather.condition.trim().isNotEmpty)
             Positioned.fill(
               child: _AnimatedWeatherBackdrop(
                 condition: effectiveWeather.condition,
@@ -214,7 +226,8 @@ class _WeatherCardState extends State<WeatherCard> {
                               style: GoogleFonts.raleway(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w400,
-                                color: FlowColors.textLight.withValues(alpha: 0.7),
+                                color:
+                                    FlowColors.textLight.withValues(alpha: 0.7),
                               ),
                             ),
                           ],
@@ -223,9 +236,12 @@ class _WeatherCardState extends State<WeatherCard> {
                       Row(
                         children: [
                           Icon(
-                            _getWeatherIcon(effectiveWeather.condition, isDay: isDay),
+                            _getWeatherIcon(effectiveWeather.condition,
+                                isDay: isDay),
                             size: 28,
-                            color: isDay ? FlowColors.warmOrange : FlowColors.paleBlue,
+                            color: isDay
+                                ? FlowColors.warmOrange
+                                : FlowColors.paleBlue,
                           ),
                           const SizedBox(width: 12),
                           Text(
@@ -241,53 +257,63 @@ class _WeatherCardState extends State<WeatherCard> {
                     ],
                   ),
                 ] else ...[
-                  Text(
-                    effectiveWeather.city.isNotEmpty ? effectiveWeather.city : 'Location Off',
-                    style: GoogleFonts.raleway(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: FlowColors.textLight,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Enable location to see your local weather',
-                    style: GoogleFonts.raleway(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: FlowColors.textLight.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-                if (showEnableLocation) ...[
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      height: 38,
-                      child: FilledButton.icon(
-                        style: ButtonStyle(
-                          backgroundColor: WidgetStateProperty.all(FlowColors.softTealLight),
-                          foregroundColor: WidgetStateProperty.all(FlowColors.primaryDark),
-                          padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 14)),
-                          shape: WidgetStateProperty.all(
-                            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                        onPressed: widget.onEnableLocation,
-                        icon: const Icon(Icons.my_location, size: 18, color: Colors.black),
-                        label: Text(
-                          'Enable location',
+                  SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          effectiveWeather.city.isNotEmpty
+                              ? effectiveWeather.city
+                              : 'Location Off',
                           style: GoogleFonts.raleway(
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.black,
+                            color: FlowColors.textLight,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Turn on location to see your local weather.',
+                          style: GoogleFonts.raleway(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                            color: FlowColors.textLight.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
+                // if (showEnableLocation) ...[
+                //   const SizedBox(height: 12),
+                //   Align(
+                //     alignment: Alignment.centerLeft,
+                //     child: SizedBox(
+                //       height: 38,
+                //       child: FilledButton.icon(
+                //         style: ButtonStyle(
+                //           backgroundColor: WidgetStateProperty.all(FlowColors.softTealLight),
+                //           foregroundColor: WidgetStateProperty.all(FlowColors.primaryDark),
+                //           padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 14)),
+                //           shape: WidgetStateProperty.all(
+                //             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                //           ),
+                //         ),
+                //         onPressed: widget.onEnableLocation,
+                //         icon: const Icon(Icons.my_location, size: 18, color: Colors.black),
+                //         label: Text(
+                //           'Enable location',
+                //           style: GoogleFonts.raleway(
+                //             fontSize: 14,
+                //             fontWeight: FontWeight.w600,
+                //             color: Colors.black,
+                //           ),
+                //         ),
+                //       ),
+                //     ),
+                //   ),
+                // ],
               ],
             ),
           ),
@@ -316,10 +342,12 @@ class _WeatherCardState extends State<WeatherCard> {
 class _AnimatedWeatherBackdrop extends StatefulWidget {
   final String condition;
   final bool isDay;
-  const _AnimatedWeatherBackdrop({required this.condition, required this.isDay});
+  const _AnimatedWeatherBackdrop(
+      {required this.condition, required this.isDay});
 
   @override
-  State<_AnimatedWeatherBackdrop> createState() => _AnimatedWeatherBackdropState();
+  State<_AnimatedWeatherBackdrop> createState() =>
+      _AnimatedWeatherBackdropState();
 }
 
 class _AnimatedWeatherBackdropState extends State<_AnimatedWeatherBackdrop>
@@ -337,7 +365,8 @@ class _AnimatedWeatherBackdropState extends State<_AnimatedWeatherBackdrop>
     )..repeat();
     _lastCondition = widget.condition;
     _lastIsDay = widget.isDay;
-    debugPrint('[WeatherBackdrop] init condition=${widget.condition}, isDay=${widget.isDay}');
+    debugPrint(
+        '[WeatherBackdrop] init condition=${widget.condition}, isDay=${widget.isDay}');
   }
 
   @override
@@ -350,7 +379,8 @@ class _AnimatedWeatherBackdropState extends State<_AnimatedWeatherBackdrop>
   void didUpdateWidget(covariant _AnimatedWeatherBackdrop oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.condition != _lastCondition || widget.isDay != _lastIsDay) {
-      debugPrint('[WeatherBackdrop] change condition=${widget.condition}, isDay=${widget.isDay}');
+      debugPrint(
+          '[WeatherBackdrop] change condition=${widget.condition}, isDay=${widget.isDay}');
       _lastCondition = widget.condition;
       _lastIsDay = widget.isDay;
     }
@@ -379,17 +409,16 @@ class _WeatherScenePainter extends CustomPainter {
   final double t; // 0..1 animation time
   final String condition;
   final bool isDay;
-  _WeatherScenePainter({required this.t, required this.condition, required this.isDay});
+  _WeatherScenePainter(
+      {required this.t, required this.condition, required this.isDay});
 
   @override
   void paint(Canvas canvas, Size size) {
     // Background gradient varies by time of day
-    final bgTop = isDay
-        ? FlowColors.primaryDarkVariant
-        : FlowColors.primaryDarkDeep;
-    final bgBottom = isDay
-        ? FlowColors.featurePrimaryEndDark
-        : FlowColors.primaryDark;
+    final bgTop =
+        isDay ? FlowColors.primaryDarkVariant : FlowColors.primaryDarkDeep;
+    final bgBottom =
+        isDay ? FlowColors.featurePrimaryEndDark : FlowColors.primaryDark;
 
     final rect = Offset.zero & size;
     final bgPaint = Paint()
@@ -406,7 +435,9 @@ class _WeatherScenePainter extends CustomPainter {
       _drawRain(canvas, size, density: 0.9);
       _drawClouds(canvas, size, layer: 2);
       _drawLightning(canvas, size);
-    } else if (c.contains('rain') || c.contains('drizzle') || c.contains('showers')) {
+    } else if (c.contains('rain') ||
+        c.contains('drizzle') ||
+        c.contains('showers')) {
       _drawRain(canvas, size, density: 0.7);
       _drawClouds(canvas, size, layer: 2);
     } else if (c.contains('snow')) {
@@ -464,14 +495,16 @@ class _WeatherScenePainter extends CustomPainter {
   void _drawMoon(Canvas canvas, Size size) {
     final center = Offset(size.width * 0.2, size.height * 0.25);
     final r = 16.0;
-    final moonPaint = Paint()..color = FlowColors.paleBlue.withValues(alpha: 0.9);
+    final moonPaint = Paint()
+      ..color = FlowColors.paleBlue.withValues(alpha: 0.9);
     canvas.drawCircle(center, r, moonPaint);
     final cutPaint = Paint()..color = FlowColors.primaryDarkDeep;
     canvas.drawCircle(center + const Offset(6, -2), r * 0.9, cutPaint);
   }
 
   void _drawStars(Canvas canvas, Size size) {
-    final starPaint = Paint()..color = FlowColors.paleBlue.withValues(alpha: 0.9);
+    final starPaint = Paint()
+      ..color = FlowColors.paleBlue.withValues(alpha: 0.9);
     final count = 24;
     for (int i = 0; i < count; i++) {
       final phase = (t + i * 0.07) % 1.0;
@@ -506,17 +539,22 @@ class _WeatherScenePainter extends CustomPainter {
       final s2 = 0.8 - l * 0.1;
 
       // Paint each puff with per-puff edge fading
-      _drawCloud(canvas, baseColor, Offset(baseX, y), scale: s0, width: size.width);
-      _drawCloud(canvas, baseColor, Offset(baseX - 120, y + 12), scale: s1, width: size.width);
-      _drawCloud(canvas, baseColor, Offset(baseX - 220, y - 6), scale: s2, width: size.width);
+      _drawCloud(canvas, baseColor, Offset(baseX, y),
+          scale: s0, width: size.width);
+      _drawCloud(canvas, baseColor, Offset(baseX - 120, y + 12),
+          scale: s1, width: size.width);
+      _drawCloud(canvas, baseColor, Offset(baseX - 220, y - 6),
+          scale: s2, width: size.width);
     }
   }
 
-  void _drawCloud(Canvas canvas, Color color, Offset c, {double scale = 1, required double width}) {
+  void _drawCloud(Canvas canvas, Color color, Offset c,
+      {double scale = 1, required double width}) {
     // Edge fade-in/out near screen bounds to avoid popping
     const fade = 64.0; // fade span in px on each side
     double edgeFade(double x) {
-      final fadeIn = _smoothstep(width + fade, width - 4, x); // from offscreen -> edge
+      final fadeIn =
+          _smoothstep(width + fade, width - 4, x); // from offscreen -> edge
       final fadeOut = _smoothstep(-fade, 4, x); // from edge -> offscreen left
       // When within viewport, both functions ~1; outside, one of them reduces alpha
       final a = _clamp01(fadeIn) * _clamp01(fadeOut);
@@ -525,7 +563,8 @@ class _WeatherScenePainter extends CustomPainter {
 
     final alpha = edgeFade(c.dx);
     if (alpha <= 0.01) return;
-    final paint = Paint()..color = color.withValues(alpha: color.opacity * alpha);
+    final paint = Paint()
+      ..color = color.withValues(alpha: color.opacity * alpha);
 
     final r = 14.0 * scale;
     // Draw puffs
@@ -596,11 +635,13 @@ class _WeatherScenePainter extends CustomPainter {
     final layers = 3;
     for (int i = 0; i < layers; i++) {
       final alpha = 0.08 + i * 0.06;
-      final paint = Paint()..color = FlowColors.paleBlue.withValues(alpha: alpha);
+      final paint = Paint()
+        ..color = FlowColors.paleBlue.withValues(alpha: alpha);
       final y = size.height * (0.25 + i * 0.16);
       final dx = size.width * (0.2 * Maths.sin((t + i * 0.2) * 6.28318));
       final rect = Rect.fromLTWH(-20 + dx, y, size.width + 40, 18);
-      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(12)), paint);
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(12)), paint);
     }
   }
 
@@ -622,7 +663,8 @@ class _WeatherScenePainter extends CustomPainter {
         ..lineTo(x - 16, y + 56)
         ..lineTo(x + 12, y + 34)
         ..lineTo(x, y);
-      final bolt = Paint()..color = FlowColors.accentAmber.withValues(alpha: 0.9);
+      final bolt = Paint()
+        ..color = FlowColors.accentAmber.withValues(alpha: 0.9);
       canvas.drawPath(p, bolt);
     }
   }

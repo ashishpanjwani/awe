@@ -12,6 +12,66 @@ import 'package:wanderwell/utils/app_utils.dart';
 
 enum QuestEntryType { quest, microAdventure }
 
+// 🎯 NEW: Private class to hold all necessary context, fetched efficiently
+class _DailyContext {
+  final String place;
+  final double? lat;
+  final double? lon;
+  final String season;
+  final String dayPart;
+  final bool isWeekend;
+  final String? weather;
+
+  _DailyContext({
+    required this.place,
+    this.lat,
+    this.lon,
+    required this.season,
+    required this.dayPart,
+    required this.isWeekend,
+    this.weather,
+  });
+
+  // New: Static method to fetch all context in parallel
+  static Future<_DailyContext> fetch() async {
+    final now = DateTime.now();
+
+    // Parallelize Location fetching
+    final locFuture = LocationService().getCurrentLocationWithName(allowIpFallback: false);
+    
+    final loc = await locFuture;
+    final place = loc?.name ?? 'your area';
+    final lat = loc?.lat;
+    final lon = loc?.lon;
+
+    String? weather;
+    if (lat != null && lon != null) {
+      try {
+        // Await weather only if we have coordinates
+        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
+        weather = w.condition; 
+      } catch (_) {
+        // Ignore weather on failure
+      }
+    }
+
+    // Compute time context synchronously
+    final season = QuestService._seasonForStatic(now, lat: lat);
+    final dayPart = QuestService._dayPeriodStatic(now);
+    final isWeekend = (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday);
+
+    return _DailyContext(
+      place: place,
+      lat: lat,
+      lon: lon,
+      season: season,
+      dayPart: dayPart,
+      isWeekend: isWeekend,
+      weather: weather,
+    );
+  }
+}
+
 class QuestService {
   QuestService._();
   static final QuestService _instance = QuestService._();
@@ -28,7 +88,8 @@ class QuestService {
       return null;
     }
     final key = AppUtils.todayKey();
-    final docRef = _db.collection('users').doc(user.uid).collection('daily').doc(key);
+    final docRef =
+        _db.collection('users').doc(user.uid).collection('daily').doc(key);
     try {
       final snap = await docRef.get();
       if (snap.exists) {
@@ -43,7 +104,7 @@ class QuestService {
 
       DailyQuests generated;
       try {
-        generated = await _generateDailyAI();
+        generated = await _generateDailyAI(); // Calls _DailyContext.fetch() internally
       } catch (e, st) {
         debugPrint('[QuestService] _generateDailyAI failed, falling back. $e');
         debugPrint('$st');
@@ -63,7 +124,8 @@ class QuestService {
     final user = _auth.currentUser;
     if (user == null) return null;
     final key = AppUtils.todayKey();
-    final docRef = _db.collection('users').doc(user.uid).collection('daily').doc(key);
+    final docRef =
+        _db.collection('users').doc(user.uid).collection('daily').doc(key);
     try {
       // Read current to avoid repeat
       final existingSnap = await docRef.get();
@@ -71,22 +133,31 @@ class QuestService {
       if (existingSnap.exists) {
         final data = existingSnap.data();
         if (data != null && data['quest'] is Map<String, dynamic>) {
-          prevTitle = ((data['quest'] as Map<String, dynamic>)['title'] ?? '').toString();
+          prevTitle = ((data['quest'] as Map<String, dynamic>)['title'] ?? '')
+              .toString();
         }
       }
 
+      // 🎯 OPTIMIZATION: Fetch context before AI call
+      final context = await _DailyContext.fetch();
+
       QuestOfTheMoment newQuest;
       try {
-        newQuest = await _generateQuestAI(avoidTitle: prevTitle);
+        newQuest = await _generateQuestAI(context: context, avoidTitle: prevTitle);
       } catch (e, st) {
         debugPrint('[QuestService] _generateQuestAI failed, falling back. $e');
         debugPrint('$st');
         final titleContext = await _locationLabel();
         newQuest = _generateQuestAvoiding(titleContext, avoidTitle: prevTitle);
       }
-      await docRef.set({'quest': newQuest.toJson(), 'dateKey': key, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      await docRef.set({
+        'quest': newQuest.toJson(),
+        'dateKey': key,
+        'updatedAt': FieldValue.serverTimestamp()
+      }, SetOptions(merge: true));
       final snap = await docRef.get();
-      return DailyQuests.fromJson(snap.data()!..putIfAbsent('microAdventure', () => {}));
+      return DailyQuests.fromJson(
+          snap.data()!..putIfAbsent('microAdventure', () => {}));
     } catch (e, st) {
       debugPrint('[QuestService] resetQuest error: $e');
       debugPrint('$st');
@@ -99,7 +170,8 @@ class QuestService {
     final user = _auth.currentUser;
     if (user == null) return null;
     final key = AppUtils.todayKey();
-    final docRef = _db.collection('users').doc(user.uid).collection('daily').doc(key);
+    final docRef =
+        _db.collection('users').doc(user.uid).collection('daily').doc(key);
     try {
       // Read current to avoid repeat
       final existingSnap = await docRef.get();
@@ -107,20 +179,30 @@ class QuestService {
       if (existingSnap.exists) {
         final data = existingSnap.data();
         if (data != null && data['microAdventure'] is Map<String, dynamic>) {
-          prevTitle = ((data['microAdventure'] as Map<String, dynamic>)['title'] ?? '').toString();
+          prevTitle =
+              ((data['microAdventure'] as Map<String, dynamic>)['title'] ?? '')
+                  .toString();
         }
       }
 
+      // 🎯 OPTIMIZATION: Fetch context before AI call
+      final context = await _DailyContext.fetch();
+
       MicroAdventure newMicro;
       try {
-        newMicro = await _generateMicroAI(avoidTitle: prevTitle);
+        newMicro = await _generateMicroAI(context: context, avoidTitle: prevTitle);
       } catch (e, st) {
         debugPrint('[QuestService] _generateMicroAI failed, falling back. $e');
         debugPrint('$st');
         final titleContext = await _locationLabel();
-        newMicro = _generateMicroAdventureAvoiding(titleContext, avoidTitle: prevTitle);
+        newMicro = _generateMicroAdventureAvoiding(titleContext,
+            avoidTitle: prevTitle);
       }
-      await docRef.set({'microAdventure': newMicro.toJson(), 'dateKey': key, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      await docRef.set({
+        'microAdventure': newMicro.toJson(),
+        'dateKey': key,
+        'updatedAt': FieldValue.serverTimestamp()
+      }, SetOptions(merge: true));
       final snap = await docRef.get();
       return DailyQuests.fromJson(snap.data()!..putIfAbsent('quest', () => {}));
     } catch (e, st) {
@@ -141,7 +223,9 @@ class QuestService {
     try {
       if (type == QuestEntryType.quest) {
         await dailyRef.set({
-          'quest': current.quest.copyWith(completed: true, completedAt: now).toJson(),
+          'quest': current.quest
+              .copyWith(completed: true, completedAt: now)
+              .toJson(),
         }, SetOptions(merge: true));
         await userRef.collection('completedQuests').add({
           'type': 'quest',
@@ -151,7 +235,9 @@ class QuestService {
         });
       } else {
         await dailyRef.set({
-          'microAdventure': current.microAdventure.copyWith(completed: true, completedAt: now).toJson(),
+          'microAdventure': current.microAdventure
+              .copyWith(completed: true, completedAt: now)
+              .toJson(),
         }, SetOptions(merge: true));
         await userRef.collection('completedQuests').add({
           'type': 'microAdventure',
@@ -204,7 +290,9 @@ class QuestService {
           .collection('users')
           .doc(user.uid)
           .collection('completedQuests')
-          .where('type', isEqualTo: type == QuestEntryType.quest ? 'quest' : 'microAdventure')
+          .where('type',
+              isEqualTo:
+                  type == QuestEntryType.quest ? 'quest' : 'microAdventure')
           .get();
       return qs.size;
     } catch (e) {
@@ -216,7 +304,8 @@ class QuestService {
   // ----- Generation helpers (non-AI, contextual to location + light randomness) -----
   Future<String> _locationLabel() async {
     try {
-      final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
+      final loc = await LocationService()
+          .getCurrentLocationWithName(allowIpFallback: false);
       return loc?.name ?? 'your area';
     } catch (_) {
       return 'your area';
@@ -224,40 +313,20 @@ class QuestService {
   }
 
   // ----- Gemini (firebase_ai) powered generation -----
-  static const String _modelName = 'gemini-2.5-flash';
+  static const String _modelName = 'gemini-2.5-flash-lite';
 
   Future<DailyQuests> _generateDailyAI() async {
     final nowKey = AppUtils.todayKey();
-    final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
-    final place = loc?.name ?? 'your area';
-    final lat = loc?.lat;
-    final lon = loc?.lon;
-
-    // Lightweight real-world context for authenticity with minimal tokens
-    final now = DateTime.now();
-    final season = _seasonFor(now, lat: lat);
-    final dayPart = _dayPeriod(now);
-    final isWeekend = (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday);
-    String? weather;
-    try {
-      if (lat != null && lon != null) {
-        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
-        weather = w.condition; // e.g., Clear, Rain, Cloudy
-      }
-    } catch (_) {
-      // Ignore weather on failure
-    }
+    
+    // 🎯 OPTIMIZATION: Fetch all context in one parallel call
+    final context = await _DailyContext.fetch();
+    print('Place: ${context.place} ${context.lat} ${context.lon}');
 
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
-    final prompt = _buildDailyPrompt(
-      place: place,
-      lat: lat,
-      lon: lon,
-      season: season,
-      dayPart: dayPart,
-      isWeekend: isWeekend,
-      weather: weather,
-    );
+    
+    // Pass the context object to the prompt builder
+    final prompt = _buildDailyPrompt(context: context); 
+    
     final resp = await model.generateContent(
       [Content.text(prompt)],
       generationConfig: GenerationConfig(
@@ -276,8 +345,8 @@ class QuestService {
 
     final questJson = (decoded['quest'] ?? {}) as Map<String, dynamic>;
     final microJson = (decoded['microAdventure'] ?? {}) as Map<String, dynamic>;
-    final quest = _questFromLLM(questJson, fallbackPlace: place);
-    final micro = _microFromLLM(microJson, fallbackPlace: place);
+    final quest = _questFromLLM(questJson, fallbackPlace: context.place);
+    final micro = _microFromLLM(microJson, fallbackPlace: context.place);
 
     return DailyQuests(
       dateKey: nowKey,
@@ -287,31 +356,15 @@ class QuestService {
     );
   }
 
-  Future<QuestOfTheMoment> _generateQuestAI({String? avoidTitle}) async {
-    final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
-    final place = loc?.name ?? 'your area';
-    final lat = loc?.lat;
-    final lon = loc?.lon;
-    final now = DateTime.now();
-    final season = _seasonFor(now, lat: lat);
-    final dayPart = _dayPeriod(now);
-    String? weather;
-    try {
-      if (lat != null && lon != null) {
-        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
-        weather = w.condition;
-      }
-    } catch (_) {}
+  Future<QuestOfTheMoment> _generateQuestAI({required _DailyContext context, String? avoidTitle}) async {
+    print('Place: ${context.place} ${context.lat} ${context.lon}');
+
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
     final prompt = _buildQuestOnlyPrompt(
-      place: place,
-      lat: lat,
-      lon: lon,
+      context: context,
       avoidTitle: avoidTitle,
-      season: season,
-      dayPart: dayPart,
-      weather: weather,
     );
+    
     // Up to 3 attempts to avoid repeating titles
     for (int attempt = 0; attempt < 3; attempt++) {
       final resp = await model.generateContent(
@@ -328,41 +381,25 @@ class QuestService {
       final extracted = _extractFirstJsonObject(text);
       final cleaned = _sanitizeJson(extracted);
       final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
-      final candidate = _questFromLLM(decoded, fallbackPlace: place);
+      final candidate = _questFromLLM(decoded, fallbackPlace: context.place);
       if (avoidTitle == null || !_isSimilarTitle(candidate.title, avoidTitle)) {
         return candidate;
       }
-      debugPrint('[QuestService] AI quest duplicate detected, retrying (attempt ${attempt + 1})');
+      debugPrint(
+          '[QuestService] AI quest duplicate detected, retrying (attempt ${attempt + 1})');
     }
     // Last resort: fallback local generator with avoidance
     final titleContext = await _locationLabel();
     return _generateQuestAvoiding(titleContext, avoidTitle: avoidTitle);
   }
 
-  Future<MicroAdventure> _generateMicroAI({String? avoidTitle}) async {
-    final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
-    final place = loc?.name ?? 'your area';
-    final lat = loc?.lat;
-    final lon = loc?.lon;
-    final now = DateTime.now();
-    final season = _seasonFor(now, lat: lat);
-    final dayPart = _dayPeriod(now);
-    String? weather;
-    try {
-      if (lat != null && lon != null) {
-        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
-        weather = w.condition;
-      }
-    } catch (_) {}
+  Future<MicroAdventure> _generateMicroAI({required _DailyContext context, String? avoidTitle}) async {
+    print('Place: ${context.place} ${context.lat} ${context.lon}');
+
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
     final prompt = _buildMicroOnlyPrompt(
-      place: place,
-      lat: lat,
-      lon: lon,
+      context: context,
       avoidTitle: avoidTitle,
-      season: season,
-      dayPart: dayPart,
-      weather: weather,
     );
     for (int attempt = 0; attempt < 3; attempt++) {
       final resp = await model.generateContent(
@@ -379,31 +416,43 @@ class QuestService {
       final extracted = _extractFirstJsonObject(text);
       final cleaned = _sanitizeJson(extracted);
       final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
-      final candidate = _microFromLLM(decoded, fallbackPlace: place);
+      final candidate = _microFromLLM(decoded, fallbackPlace: context.place);
       if (avoidTitle == null || !_isSimilarTitle(candidate.title, avoidTitle)) {
         return candidate;
       }
-      debugPrint('[QuestService] AI micro duplicate detected, retrying (attempt ${attempt + 1})');
+      debugPrint(
+          '[QuestService] AI micro duplicate detected, retrying (attempt ${attempt + 1})');
     }
     final titleContext = await _locationLabel();
-    return _generateMicroAdventureAvoiding(titleContext, avoidTitle: avoidTitle);
+    return _generateMicroAdventureAvoiding(titleContext,
+        avoidTitle: avoidTitle);
   }
 
-  String _buildDailyPrompt({
-    required String place,
-    double? lat,
-    double? lon,
-    required String season,
-    required String dayPart,
-    required bool isWeekend,
-    String? weather,
-  }) {
-    final locLine = (lat != null && lon != null) ? '($lat,$lon)' : '';
-    final contextLine = 'Context: season=' + season + '; time=' + dayPart + '; ' + (isWeekend ? 'weekend' : 'weekday') + (weather != null ? '; weather=' + weather! : '') + '.';
+  // 🎯 ENHANCED PROMPT: Uses _DailyContext for clean, contextual instructions
+  String _buildDailyPrompt({required _DailyContext context}) {
+    final locLine = (context.lat != null && context.lon != null) ? 
+        '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})' : '';
+    
+    final contextLine = 'Context: season=' +
+        context.season +
+        '; time=' +
+        context.dayPart +
+        '; ' +
+        (context.isWeekend ? 'weekend' : 'weekday') +
+        (context.weather != null ? '; weather=' + context.weather! : '') +
+        '.';
+        
+    // 🎯 NEW INSTRUCTION FOR AUTHENTICITY 
+    final personalizationInstruction = '''
+    Personalization Rule: Use the location and coordinates to imagine a realistic local setting (e.g., typical architecture style, common regional activities, typical terrain like 'hilly neighborhood' or 'coastal trail'). Do NOT invent proper names, but ensure the challenge *feels* unique to ${context.place}.
+    ''';
+
     return '''
 System instruction: You are a mindful, safety-conscious local guide. Output ONLY a JSON object with this schema and nothing else.
 
-User request: In "$place" $locLine. $contextLine Create a location-personalized daily quest and a distinct 1-hour micro adventure for today.
+User request: In "${context.place}" $locLine. $contextLine Create a location-personalized daily quest and a distinct 1-hour micro adventure for today.
+
+$personalizationInstruction
 
 JSON schema to output exactly:
 {
@@ -419,30 +468,27 @@ JSON schema to output exactly:
 }
 
 Rules:
-- Personalize with generic-but-real anchors (riverfront, central market, main square, neighborhood park). Do NOT invent exact place names.
-- Be practical for $dayPart and ${isWeekend ? 'weekend' : 'weekday'}${weather != null ? ' in ' + weather!.toLowerCase() : ''}; adapt to $season (e.g., shade in summer, cozy indoor if rain).
+- Personalize with realistic, generic anchors (e.g., riverfront, main square, neighborhood park) based on what the area likely offers.
+- Be practical for ${context.dayPart} and ${context.isWeekend ? 'weekend' : 'weekday'}${context.weather != null ? ' in ' + context.weather!.toLowerCase() : ''}; adapt to ${context.season}.
 - Keep language concise, friendly, and in English. No emojis, no markdown. No lists beyond the 3 steps.
 - Provide one clear plan (no options), and make the quest and micro adventure distinct.
 ''';
   }
 
-  String _buildQuestOnlyPrompt({
-    required String place,
-    double? lat,
-    double? lon,
-    String? avoidTitle,
-    required String season,
-    required String dayPart,
-    String? weather,
-  }) {
-    final locLine = (lat != null && lon != null) ? '($lat,$lon)' : '';
+  // 🎯 ENHANCED PROMPT: Uses _DailyContext for clean, contextual instructions
+  String _buildQuestOnlyPrompt({required _DailyContext context, String? avoidTitle}) {
+    final locLine = (context.lat != null && context.lon != null) ? 
+        '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})' : '';
     final avoid = (avoidTitle == null || avoidTitle.trim().isEmpty)
         ? ''
         : '\nAvoid repeating, paraphrasing, or using the same landmark/theme as: "$avoidTitle". Choose a different local hook.';
-    final wx = weather != null ? '; weather=$weather' : '';
+    final wx = context.weather != null ? '; weather=${context.weather}' : '';
+    final personalizationInstruction = 'Use location/coordinates to imagine a realistic local setting (e.g., architecture, terrain).';
+
     return '''
 System instruction: Output ONLY JSON for a single quest object.
-User request: "$place" $locLine. Context: season=$season; time=$dayPart$wx. Generate a concise, location-aware quest.
+User request: "${context.place}" $locLine. Context: season=${context.season}; time=${context.dayPart}$wx. Generate a concise, location-aware quest.
+$personalizationInstruction
 Schema:
 {
   "title": string,
@@ -456,23 +502,20 @@ Rules:
 ''';
   }
 
-  String _buildMicroOnlyPrompt({
-    required String place,
-    double? lat,
-    double? lon,
-    String? avoidTitle,
-    required String season,
-    required String dayPart,
-    String? weather,
-  }) {
-    final locLine = (lat != null && lon != null) ? '($lat,$lon)' : '';
+  // 🎯 ENHANCED PROMPT: Uses _DailyContext for clean, contextual instructions
+  String _buildMicroOnlyPrompt({required _DailyContext context, String? avoidTitle}) {
+    final locLine = (context.lat != null && context.lon != null) ? 
+        '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})' : '';
     final avoid = (avoidTitle == null || avoidTitle.trim().isEmpty)
         ? ''
         : '\nAvoid repeating, paraphrasing, or using the same landmark/theme as: "$avoidTitle". Use a different angle or area.';
-    final wx = weather != null ? '; weather=$weather' : '';
+    final wx = context.weather != null ? '; weather=${context.weather}' : '';
+    final personalizationInstruction = 'Use location/coordinates to imagine a realistic local setting (e.g., architecture, terrain).';
+
     return '''
 System instruction: Output ONLY JSON for a micro adventure object.
-User request: "$place" $locLine. Context: season=$season; time=$dayPart$wx. Create a 1-hour micro adventure for today.
+User request: "${context.place}" $locLine. Context: season=${context.season}; time=${context.dayPart}$wx. Create a 1-hour micro adventure for today.
+$personalizationInstruction
 Schema:
 {
   "title": string,
@@ -480,14 +523,16 @@ Schema:
 }
 Rules:
 - Exactly 2 sentences; start with where to begin (generic anchor), then what to do.
-- Feasible in ~60 minutes, low-cost or free, and safe. Adjust for $dayPart${weather != null ? ' and ' + weather!.toLowerCase() : ''}.
+- Feasible in ~60 minutes, low-cost or free, and safe. Adjust for ${context.dayPart}${context.weather != null ? ' and ' + context.weather!.toLowerCase() : ''}.
 - Use generic-but-real anchors; do NOT invent precise place names; English only; no extra keys.$avoid
 ''';
   }
 
-  QuestOfTheMoment _questFromLLM(Map<String, dynamic> json, {required String fallbackPlace}) {
+  QuestOfTheMoment _questFromLLM(Map<String, dynamic> json,
+      {required String fallbackPlace}) {
     final titleRaw = (json['title'] ?? '').toString().trim();
-    final title = _tightTitle(titleRaw.isEmpty ? 'Explore a corner of $fallbackPlace' : titleRaw);
+    final title = _tightTitle(
+        titleRaw.isEmpty ? 'Explore a corner of $fallbackPlace' : titleRaw);
     List<String> steps = (json['steps'] as List?)
             ?.map((e) => _tightLine(e.toString().trim()))
             .where((e) => e.isNotEmpty)
@@ -502,11 +547,16 @@ Rules:
         steps.add('Sit 10 minutes; notice sounds and smells.');
       }
     }
-    final reflection = _tightLine((json['reflectionPrompt'] ?? 'What surprised you today in $fallbackPlace?').toString().trim());
-    return QuestOfTheMoment(title: title, steps: steps, reflectionPrompt: reflection);
+    final reflection = _tightLine((json['reflectionPrompt'] ??
+            'What surprised you today in $fallbackPlace?')
+        .toString()
+        .trim());
+    return QuestOfTheMoment(
+        title: title, steps: steps, reflectionPrompt: reflection);
   }
 
-  MicroAdventure _microFromLLM(Map<String, dynamic> json, {required String fallbackPlace}) {
+  MicroAdventure _microFromLLM(Map<String, dynamic> json,
+      {required String fallbackPlace}) {
     final titleRaw = (json['title'] ?? '').toString().trim();
     final descRaw = (json['description'] ?? '').toString().trim();
     final t = _tightTitle(titleRaw.isEmpty ? 'Golden Hour Walk' : titleRaw);
@@ -530,10 +580,7 @@ Rules:
   String _sanitizeJson(String input) {
     var out = input;
     out = out.replaceAll(RegExp(r"//.*"), '');
-    out = out
-        .replaceAll('“', '"')
-        .replaceAll('”', '"')
-        .replaceAll('’', "'");
+    out = out.replaceAll('“', '"').replaceAll('”', '"').replaceAll('’', "'");
     out = out.replaceAll(RegExp(r',\s*([}\]])'), r'$1');
     out = utf8.decode(utf8.encode(out));
     return out.trim();
@@ -545,7 +592,9 @@ Rules:
     // Drop trailing punctuation in titles
     t = t.replaceAll(RegExp(r'[\.!?]+$'), '');
     // Light de-genericizing of very common openers
-    t = t.replaceFirst(RegExp(r'^(Explore|Discover|Experience)\b', caseSensitive: false), 'Stroll');
+    t = t.replaceFirst(
+        RegExp(r'^(Explore|Discover|Experience)\b', caseSensitive: false),
+        'Stroll');
     return t;
   }
 
@@ -567,7 +616,8 @@ Rules:
     return parts.take(2).join(' ');
   }
 
-  String _seasonFor(DateTime date, {double? lat}) {
+  // 🎯 Renamed to static for use in _DailyContext
+  static String _seasonForStatic(DateTime date, {double? lat}) {
     // Northern hemisphere default; flip by 6 months for southern
     var m = date.month;
     if (lat != null && lat < 0) {
@@ -579,7 +629,8 @@ Rules:
     return 'Winter';
   }
 
-  String _dayPeriod(DateTime date) {
+  // 🎯 Renamed to static for use in _DailyContext
+  static String _dayPeriodStatic(DateTime date) {
     final h = date.hour;
     if (h < 5) return 'pre-dawn';
     if (h < 12) return 'morning';
@@ -638,12 +689,15 @@ Rules:
       ],
     ];
     final steps = stepsBank[rng.nextInt(stepsBank.length)];
-    final reflection = 'What surprised you most today in $contextLabel, and why?';
+    final reflection =
+        'What surprised you most today in $contextLabel, and why?';
 
-    return QuestOfTheMoment(title: title, steps: steps, reflectionPrompt: reflection);
+    return QuestOfTheMoment(
+        title: title, steps: steps, reflectionPrompt: reflection);
   }
 
-  QuestOfTheMoment _generateQuestAvoiding(String contextLabel, {String? avoidTitle}) {
+  QuestOfTheMoment _generateQuestAvoiding(String contextLabel,
+      {String? avoidTitle}) {
     for (int i = 0; i < 5; i++) {
       final q = _generateQuest(contextLabel);
       if (avoidTitle == null || !_isSimilarTitle(q.title, avoidTitle)) return q;
@@ -671,7 +725,8 @@ Rules:
     return MicroAdventure(title: titles[i], description: descs[i]);
   }
 
-  MicroAdventure _generateMicroAdventureAvoiding(String contextLabel, {String? avoidTitle}) {
+  MicroAdventure _generateMicroAdventureAvoiding(String contextLabel,
+      {String? avoidTitle}) {
     for (int i = 0; i < 5; i++) {
       final m = _generateMicroAdventure(contextLabel);
       if (avoidTitle == null || !_isSimilarTitle(m.title, avoidTitle)) return m;
@@ -694,5 +749,6 @@ Rules:
     return jaccard >= 0.6; // high overlap considered similar
   }
 
-  String _normalize(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  String _normalize(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 }
