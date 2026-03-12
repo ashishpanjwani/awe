@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -19,7 +20,12 @@ class AuthService {
 
   bool get isLoggedIn => _currentUser != null;
 
+  // Completes when the first auth state has been observed (rehydration done or confirmed null)
+  Completer<void>? _readyCompleter;
+  bool _emittedInitial = false;
+
   Future<void> initialize() async {
+    _readyCompleter ??= Completer<void>();
     // Keep current user in sync, but don't block UI if Firestore is offline
     _auth.authStateChanges().listen((firebase_auth.User? firebaseUser) async {
       if (firebaseUser != null) {
@@ -30,13 +36,37 @@ class AuthService {
       } else {
         _currentUser = null;
       }
+      // Signal that we've received the initial auth state at least once
+      if (!_emittedInitial) {
+        _emittedInitial = true;
+        if (!(_readyCompleter?.isCompleted ?? true)) {
+          _readyCompleter!.complete();
+        }
+      }
     });
 
     final firebaseUser = _auth.currentUser;
     if (firebaseUser != null) {
       _currentUser = _fromFirebaseUser(firebaseUser);
       await _loadUserData(firebaseUser.uid);
+      // If currentUser is already present synchronously, we can also mark ready
+      if (!_emittedInitial) {
+        _emittedInitial = true;
+        if (!(_readyCompleter?.isCompleted ?? true)) {
+          _readyCompleter!.complete();
+        }
+      }
     }
+  }
+
+  /// Await this in Splash to ensure the first auth state (logged in or null)
+  /// has been observed before deciding where to navigate. It times out in callers.
+  Future<void> get ready async {
+    if (_readyCompleter == null) {
+      // In case initialize() wasn't called (shouldn't happen), set up minimal readiness
+      _readyCompleter = Completer<void>()..complete();
+    }
+    return _readyCompleter!.future;
   }
 
   Future<void> _loadUserData(String uid) async {

@@ -232,7 +232,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                                     _DaysSelector(
                                       value: state.days,
                                       onChanged: (v) => context.read<DestinationDetailCubit>().setDays(v),
-                                      hint: 'Typical: ${d.idealDays} day${d.idealDays == 1 ? '' : 's'} for highlights',
+                                      hint: 'Typical: ${d.idealDays} day${d.idealDays == 1 ? '' : 's'}',
                                     ),
                                   ],
                                 ),
@@ -327,11 +327,9 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
     debugPrint('[DestinationDetail] Pushing LoadingScreen for $name ($days days)');
 
     Navigator.of(context)
-        .push(
-      MaterialPageRoute(
-        builder: (_) => LoadingScreen(generateTask: task),
-      ),
-    )
+        .pushNamed('/loading', arguments: {
+      'generateTask': task,
+    })
         .then((_) {
       if (mounted) _cubit.setGenerating(false);
     });

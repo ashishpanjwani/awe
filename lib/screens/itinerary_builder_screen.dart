@@ -606,13 +606,11 @@ extension on _ItineraryBuilderScreenState {
     // Navigate to the loading screen with ONLY the rotating captions.
     // We intentionally do not pass progress stream or custom text so the
     // four fixed phrases are shown consistently across all stages.
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => LoadingScreen(
-          generateTask:
-              _generate(dest, affordability, styles, flexibility, null),
-        ),
-      ),
+    Navigator.of(context).pushNamed(
+      '/loading',
+      arguments: {
+        'generateTask': _generate(dest, affordability, styles, flexibility, null),
+      },
     );
   }
 

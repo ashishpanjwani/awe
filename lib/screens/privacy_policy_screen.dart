@@ -121,7 +121,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   '• Open-Meteo — public weather data (uses approximate coordinates).'),
               const Text('• Photon (Komoot) — place autocomplete suggestions.'),
               const Text(
-                  '• Wikimedia Commons — public image URLs for world entries.'),
+                  '• Wikimedia Commons & Unsplash — public image URLs for world entries.'),
               const SizedBox(height: 8),
               const Text(
                   'These processors have their own privacy practices and may store/process data in different countries. We rely on their security controls and contractual commitments.'),

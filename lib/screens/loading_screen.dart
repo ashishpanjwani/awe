@@ -96,51 +96,89 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: FlowColors.primaryDark,
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Lottie.asset('assets/animations/camping_car.json',
-                   repeat: true),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 350),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  // Subtle vertical slide (incoming from slightly below) + fade
-                  final slideAnim = Tween<Offset>(
-                    begin: const Offset(0, 0.10), // small movement
-                    end: Offset.zero,
-                  ).animate(CurvedAnimation(
-                      parent: animation, curve: Curves.easeOutCubic));
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Lottie.asset('assets/animations/camping_car.json',
+                        repeat: true),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
+                        // Subtle vertical slide (incoming from slightly below) + fade
+                        final slideAnim = Tween<Offset>(
+                          begin: const Offset(0, 0.10), // small movement
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                            parent: animation, curve: Curves.easeOutCubic));
 
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(position: slideAnim, child: child),
-                  );
-                },
-                child: Text(
-                  _liveLine ?? _lines[_index],
-                  // Key by the actual text so the switcher updates immediately
-                  // when the live progress line changes.
-                  key: ValueKey<String>(_liveLine ?? _lines[_index]),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color:
-                        FlowColors.paleBlue, // keep your `accent` or `stroke`
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                              position: slideAnim, child: child),
+                        );
+                      },
+                      child: Text(
+                        _liveLine ?? _lines[_index],
+                        // Key by the actual text so the switcher updates immediately
+                        // when the live progress line changes.
+                        key: ValueKey<String>(_liveLine ?? _lines[_index]),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: FlowColors
+                              .paleBlue, // keep your `accent` or `stroke`
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+
+            // 2. Static Message at the Bottom
+            Container(
+              alignment: Alignment.center,
+              padding:
+                  const EdgeInsets.only(bottom: 24.0, left: 24.0, right: 24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Almost there!',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: FlowColors.textLight,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This may take a little while. Thanks for hanging tight.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: FlowColors.textLight.withOpacity(0.7),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

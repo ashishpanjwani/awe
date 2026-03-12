@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
+import 'package:wanderwell/services/location_types.dart';
 
 /// Web implementation using the browser Geolocation API directly to avoid
 /// MissingPluginException in Flutter Web preview environments.
@@ -60,5 +61,30 @@ class LocationServiceProvider {
       debugPrint('$st');
       return null;
     }
+  }
+
+  // Web stubs: browser permissions cannot be opened programmatically.
+  Future<bool> isLocationServiceEnabled() async {
+    try {
+      // If geolocation API is present, consider service enabled
+      return html.window.navigator.geolocation != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<AppLocationPermission> getPermissionStatus({bool requestIfDenied = false}) async {
+    // Browser flows are handled by calling getCurrentPosition; here we return unknown.
+    return AppLocationPermission.unknown;
+  }
+
+  Future<bool> openAppSettings() async {
+    debugPrint('[LocationService] Web: openAppSettings not supported.');
+    return false;
+  }
+
+  Future<bool> openLocationSettings() async {
+    debugPrint('[LocationService] Web: openLocationSettings not supported.');
+    return false;
   }
 }

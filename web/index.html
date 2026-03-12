@@ -1,38 +1,103 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Let the world surprise you">
 
-  <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Awe">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>Awe</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    // This script detects the LinkedIn iOS In-App Browser and forces a redirect to Safari.
+    const userAgent = window.navigator.userAgent;
+    const url = window.location.href;
+
+    // Check if it is an iOS device AND the LinkedInApp user agent is present
+    if (userAgent.includes('Mobile') && (userAgent.includes('iPhone') || userAgent.includes('iPad')) && userAgent.includes('LinkedInApp')) {
+      // Use the x-safari- scheme to force iOS to open the URL in the native Safari app.
+      // This is a common method for escaping restrictive web views on modern iOS.
+      window.location.href = 'x-safari-' + url;
+      // IMPORTANT: The return statement stops the rest of the page from loading.
+      return;
+    }
+  </script>
+
+  <style>
+    /* * Set the body background to match your app's splash color (e.g., primaryDark)
+     * This prevents the initial pure white flash. 
+     */
+    body {
+      background-color: #0B1C2E;
+      /* A dark grey, typical for primaryDark */
+      margin: 0;
+      /* Remove default body margin */
+      padding: 0;
+      /* Remove default body padding */
+      overflow: hidden;
+      /* Hide scrollbars during loading */
+    }
+
+    /* Styles for the loading indicator container */
+    #loading-indicator {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      /* Use flexbox for easy centering */
+      justify-content: center;
+      /* Center horizontally */
+      align-items: center;
+      /* Center vertically */
+      background-color: #0B1C2E;
+      /* Match body background */
+      transition: opacity 0.5s;
+      /* Optional: smooth transition when hiding */
+    }
+
+    #loading-indicator img {
+      height: auto;
+
+      /* 🚀 Applies 0px vertical margin and 28px horizontal margin */
+      margin: 0 28px;
+
+      /* * REMOVED: width: 200px;
+         * ADDED: max-width to ensure the image doesn't get too big on large screens. 
+         * Adjust the 100% value if you want the image to shrink below its natural size 
+         * on smaller screens (e.g., max-width: 50vw).
+         */
+      max-width: 100%;
+      box-sizing: border-box;
+      /* Ensures padding/margin doesn't cause overflow */
+    }
+
+    /* Flutter automatically adds 'flt-loading' when the app is ready to hide this div */
+    .flt-loading #loading-indicator {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      /* Make sure it doesn't capture clicks */
+    }
+  </style>
 </head>
+
 <body>
+  <div id="loading-indicator">
+    <img src="assets/assets/icons/awe_icon.png" alt="Awe Logo" />
+  </div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>

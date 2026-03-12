@@ -54,8 +54,42 @@ class _SplashScreenState extends State<SplashScreen>
     _animationController.forward();
   }
 
+  // Future<void> _initializeApp() async {
+  //   // Initialize only auth quickly; data loads after navigation
+  //   print('[Splash] Initializing auth...');
+  //   try {
+  //     await AuthService().initialize();
+  //   } catch (e) {
+  //     print('[Splash] Auth init error: $e');
+  //   }
+  //   print('[Splash] Auth initialized');
+
+  //   // In parallel: wait for animation and the first auth-state rehydration
+  //   try {
+  //     await Future.wait([
+  //       Future.delayed(const Duration(milliseconds: 2500)),
+  //       // Do not hang forever; if auth doesn't emit quickly, continue after timeout
+  //       AuthService().ready.timeout(const Duration(seconds: 5)),
+  //     ]);
+  //   } catch (e) {
+  //     // Timeout or other minor issue — continue to route using whatever state we have
+  //     print('[Splash] Continue after wait error/timeout: $e');
+  //   }
+  //   print('[Splash] Splash wait complete');
+
+  //   if (!mounted) return;
+
+  //   // Navigate to appropriate screen using latest auth snapshot
+  //   final bool isLoggedIn = AuthService().isLoggedIn;
+  //   print('[Splash] isLoggedIn=$isLoggedIn, navigating next');
+  //   Navigator.of(context).pushNamedAndRemoveUntil(
+  //     isLoggedIn ? '/' : '/welcome',
+  //     (route) => false,
+  //   );
+  // }
+
   Future<void> _initializeApp() async {
-    // Initialize only auth quickly; data loads after navigation
+    // Initialize auth quickly
     print('[Splash] Initializing auth...');
     try {
       await AuthService().initialize();
@@ -64,24 +98,31 @@ class _SplashScreenState extends State<SplashScreen>
     }
     print('[Splash] Auth initialized');
 
-    // Wait for animation to complete
+    // **Wait for the animation to complete** (2500ms delay as in the older version)
     await Future.delayed(const Duration(milliseconds: 2500));
     print('[Splash] Animation delay complete');
 
+    // **Remove the unnecessary Future.wait/AuthService().ready logic**
+    // to strictly enforce waiting for the animation delay.
+    // The previous logic was:
+    // try {
+    //   await Future.wait([
+    //     Future.delayed(const Duration(milliseconds: 2500)),
+    //     AuthService().ready.timeout(const Duration(seconds: 5)),
+    //   ]);
+    // } catch (e) {
+    //   print('[Splash] Continue after wait error/timeout: $e');
+    // }
+    // print('[Splash] Splash wait complete');
+
     if (!mounted) return;
 
-    // Navigate to appropriate screen
+    // Navigate to appropriate screen using latest auth snapshot
     final bool isLoggedIn = AuthService().isLoggedIn;
     print('[Splash] isLoggedIn=$isLoggedIn, navigating next');
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            isLoggedIn ? const HomeScreen() : const WelcomeScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 500),
-      ),
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      isLoggedIn ? '/' : '/welcome',
+      (route) => false,
     );
   }
 

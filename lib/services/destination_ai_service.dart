@@ -197,6 +197,7 @@ class DestinationAIService {
           responseMimeType: 'text/plain',
           temperature: temperature,
           maxOutputTokens: maxTokens,
+          thinkingConfig: ThinkingConfig(thinkingBudget: 0)
         ),
       );
 

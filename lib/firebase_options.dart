@@ -58,7 +58,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyA_3c5NTIqyrxdbYPfYymm-RYlkKA3zPKA',
-    appId: '1:244656743763:android:788af62cc31ad3bb20eda6',
+    appId: '1:244656743763:android:eaefecba2d38218c20eda6',
     messagingSenderId: '244656743763',
     projectId: 'flow-2538d',
     storageBucket: 'flow-2538d.firebasestorage.app',
@@ -66,13 +66,13 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyARm7TEyti0TSyKSEH6omyKfDHmiF8Nw9w',
-    appId: '1:244656743763:ios:569718f6780ee66720eda6',
+    appId: '1:244656743763:ios:7f7d20240fa306c820eda6',
     messagingSenderId: '244656743763',
     projectId: 'flow-2538d',
     storageBucket: 'flow-2538d.firebasestorage.app',
     androidClientId: '244656743763-400d8lj162c1sc7en2rg99uoik5aqgbu.apps.googleusercontent.com',
-    iosClientId: '244656743763-9i82rkc9i3pfehg87gpfndd4ks8195c0.apps.googleusercontent.com',
-    iosBundleId: 'com.flow.app',
+    iosClientId: '244656743763-spu1atmhqlkp4e0l6hp9f2s63h4ch6bg.apps.googleusercontent.com',
+    iosBundleId: 'com.feelsgood.awe',
   );
 
 }

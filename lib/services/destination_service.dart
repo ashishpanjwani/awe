@@ -76,6 +76,20 @@ class DestinationService {
     }
   }
 
+  Future<Destination?> getDestinationById(String id) async {
+    try {
+      final doc = await _firestore.collection('destinations').doc(id).get();
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      return Destination.fromJson({...data, 'id': doc.id});
+    } catch (e, st) {
+      debugPrint('DestinationService getDestinationById($id) error: $e');
+      debugPrint('$st');
+      return null;
+    }
+  }
+
   /// Prefix search by destination name or country.
   /// Returns up to [limit] items that start with the provided [query]
   /// (case-insensitive). Falls back to cache when offline.

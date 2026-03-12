@@ -19,10 +19,9 @@ class DestinationCard extends StatelessWidget {
     return AnimatedButton(
       onTap: () {
         try {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => DestinationDetailScreen(destination: destination),
-            ),
+          Navigator.of(context).pushNamed(
+            '/dest/${destination.id}',
+            arguments: {'destination': destination},
           );
         } catch (e) {
           // ignore: avoid_print
@@ -186,10 +185,9 @@ class _DestinationMasonryTile extends StatelessWidget {
     return AnimatedButton(
       onTap: () {
         try {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => DestinationDetailScreen(destination: destination),
-            ),
+          Navigator.of(context).pushNamed(
+            '/dest/${destination.id}',
+            arguments: {'destination': destination},
           );
         } catch (e) {
           // ignore: avoid_print

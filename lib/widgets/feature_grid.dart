@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:wanderwell/experiment_screen.dart';
 import 'package:wanderwell/models/feature_card.dart';
 import 'package:wanderwell/theme.dart';
 import 'package:wanderwell/widgets/animated_button.dart';
@@ -40,11 +41,13 @@ class FeatureGrid extends StatelessWidget {
             child: Column(
               children: [
                 Expanded(
-                  child: _buildFeatureCard(context, features[1], isCompact: true),
+                  child:
+                      _buildFeatureCard(context, features[1], isCompact: true),
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: _buildFeatureCard(context, features[2], isCompact: true),
+                  child:
+                      _buildFeatureCard(context, features[2], isCompact: true),
                 ),
               ],
             ),
@@ -54,19 +57,24 @@ class FeatureGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildFeatureCard(BuildContext ctx, FeatureCard feature, {bool isLarge = false, bool isCompact = false}) {
+  Widget _buildFeatureCard(BuildContext ctx, FeatureCard feature,
+      {bool isLarge = false, bool isCompact = false}) {
     // Ensure we always have a valid gradient with at least 2 colors.
     // If the incoming list is malformed or too short, fall back to a safe default.
     final List<Color> safeGradient = (feature.gradientColors.length >= 2)
         ? <Color>[feature.gradientColors[0], feature.gradientColors[1]]
-        : <Color>[FlowColors.cardGradientStartDark, FlowColors.cardGradientEndDark];
+        : <Color>[
+            FlowColors.cardGradientStartDark,
+            FlowColors.cardGradientEndDark
+          ];
 
     return AnimatedButton(
       onTap: () {
         try {
           if (feature.id == 'discover') {
             ScaffoldMessenger.of(ctx).showSnackBar(
-              const SnackBar(content: Text("Something exciting is cooking. Stay tuned!")),
+              const SnackBar(
+                  content: Text("Something exciting is cooking. Stay tuned!")),
             );
             return;
           }
@@ -85,7 +93,8 @@ class FeatureGrid extends StatelessWidget {
           color: safeGradient.first,
           borderRadius: BorderRadius.circular(24),
           // Stronger outline for contrast on #0B1C2E background
-          border: Border.all(color: FlowColors.textLight.withValues(alpha: 0.22)),
+          border:
+              Border.all(color: FlowColors.textLight.withValues(alpha: 0.22)),
         ),
         child: Stack(
           children: [

@@ -1,4 +1,4 @@
-package com.flow.app
+package com.feelsgood.awe
 
 import io.flutter.embedding.android.FlutterActivity
 

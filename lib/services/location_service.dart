@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:wanderwell/services/location_types.dart';
 
 // Use conditional provider to avoid MissingPluginException on web.
 // On mobile (Android/iOS), we use Geolocator. On Web, we use browser Geolocation API.
@@ -124,4 +125,14 @@ class LocationService {
       return null;
     }
   }
+
+  // Expose provider utilities cross-platform
+  Future<bool> isLocationServiceEnabled() => _provider.isLocationServiceEnabled();
+
+  Future<AppLocationPermission> getPermissionStatus({bool requestIfDenied = false}) =>
+      _provider.getPermissionStatus(requestIfDenied: requestIfDenied);
+
+  Future<bool> openAppSettings() => _provider.openAppSettings();
+
+  Future<bool> openLocationSettings() => _provider.openLocationSettings();
 }

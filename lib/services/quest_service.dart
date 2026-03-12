@@ -12,7 +12,7 @@ import 'package:wanderwell/utils/app_utils.dart';
 
 enum QuestEntryType { quest, microAdventure }
 
-// 🎯 NEW: Private class to hold all necessary context, fetched efficiently
+// 🎯 NEW: Private class to hold all necessary context, fetched efficiently in parallel
 class _DailyContext {
   final String place;
   final double? lat;
@@ -32,22 +32,24 @@ class _DailyContext {
     this.weather,
   });
 
-  // New: Static method to fetch all context in parallel
+  // 🎯 LATENCY FIX: Static method to fetch all context I/O in parallel
   static Future<_DailyContext> fetch() async {
     final now = DateTime.now();
 
-    // Parallelize Location fetching
+    // 1. Start Location fetch immediately
     final locFuture = LocationService().getCurrentLocationWithName(allowIpFallback: false);
     
+    // Wait for Location to get coordinates
     final loc = await locFuture;
+    
     final place = loc?.name ?? 'your area';
     final lat = loc?.lat;
     final lon = loc?.lon;
 
+    // 2. Start Weather fetch (which must follow location)
     String? weather;
     if (lat != null && lon != null) {
       try {
-        // Await weather only if we have coordinates
         final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
         weather = w.condition; 
       } catch (_) {
@@ -55,7 +57,7 @@ class _DailyContext {
       }
     }
 
-    // Compute time context synchronously
+    // 3. Compute time context synchronously (which is fast)
     final season = QuestService._seasonForStatic(now, lat: lat);
     final dayPart = QuestService._dayPeriodStatic(now);
     final isWeekend = (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday);
@@ -79,6 +81,9 @@ class QuestService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final fba.FirebaseAuth _auth = fba.FirebaseAuth.instance;
+
+  // Using the user's requested model, optimized for speed.
+  static const String _modelName = 'gemini-2.5-flash-lite'; 
 
   /// Returns today's quests, generating and persisting if missing or for a new day.
   Future<DailyQuests?> getOrCreateToday() async {
@@ -104,7 +109,9 @@ class QuestService {
 
       DailyQuests generated;
       try {
-        generated = await _generateDailyAI(); // Calls _DailyContext.fetch() internally
+        // Fetch context once for the generation attempt
+        final context = await _DailyContext.fetch(); 
+        generated = await _generateDailyAI(context: context); 
       } catch (e, st) {
         debugPrint('[QuestService] _generateDailyAI failed, falling back. $e');
         debugPrint('$st');
@@ -147,7 +154,7 @@ class QuestService {
       } catch (e, st) {
         debugPrint('[QuestService] _generateQuestAI failed, falling back. $e');
         debugPrint('$st');
-        final titleContext = await _locationLabel();
+        final titleContext = context.place; // Use fetched context
         newQuest = _generateQuestAvoiding(titleContext, avoidTitle: prevTitle);
       }
       await docRef.set({
@@ -194,7 +201,7 @@ class QuestService {
       } catch (e, st) {
         debugPrint('[QuestService] _generateMicroAI failed, falling back. $e');
         debugPrint('$st');
-        final titleContext = await _locationLabel();
+        final titleContext = context.place; // Use fetched context
         newMicro = _generateMicroAdventureAvoiding(titleContext,
             avoidTitle: prevTitle);
       }
@@ -313,13 +320,10 @@ class QuestService {
   }
 
   // ----- Gemini (firebase_ai) powered generation -----
-  static const String _modelName = 'gemini-2.5-flash-lite';
 
-  Future<DailyQuests> _generateDailyAI() async {
+  Future<DailyQuests> _generateDailyAI({required _DailyContext context}) async {
     final nowKey = AppUtils.todayKey();
     
-    // 🎯 OPTIMIZATION: Fetch all context in one parallel call
-    final context = await _DailyContext.fetch();
     print('Place: ${context.place} ${context.lat} ${context.lon}');
 
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
@@ -428,7 +432,7 @@ class QuestService {
         avoidTitle: avoidTitle);
   }
 
-  // 🎯 ENHANCED PROMPT: Uses _DailyContext for clean, contextual instructions
+  // 🎯 REFINED PROMPT: Pushes for concrete experiential activities
   String _buildDailyPrompt({required _DailyContext context}) {
     final locLine = (context.lat != null && context.lon != null) ? 
         '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})' : '';
@@ -442,15 +446,15 @@ class QuestService {
         (context.weather != null ? '; weather=' + context.weather! : '') +
         '.';
         
-    // 🎯 NEW INSTRUCTION FOR AUTHENTICITY 
+    // 🎯 NEW INSTRUCTION FOR AUTHENTICITY AND EXPERIENCE
     final personalizationInstruction = '''
-    Personalization Rule: Use the location and coordinates to imagine a realistic local setting (e.g., typical architecture style, common regional activities, typical terrain like 'hilly neighborhood' or 'coastal trail'). Do NOT invent proper names, but ensure the challenge *feels* unique to ${context.place}.
+    Personalization Rule: Use the location and coordinates to imagine a realistic local setting (e.g., typical architecture style, common regional activities, typical terrain like 'hilly neighborhood' or 'coastal trail'). Do NOT invent proper names. The "Experience Quest" MUST suggest a concrete, local activity type (e.g., a specific dish cooking class, a regional hiking trail, a local craft workshop) feasible today.
     ''';
 
     return '''
 System instruction: You are a mindful, safety-conscious local guide. Output ONLY a JSON object with this schema and nothing else.
 
-User request: In "${context.place}" $locLine. $contextLine Create a location-personalized daily quest and a distinct 1-hour micro adventure for today.
+User request: In "${context.place}" $locLine. $contextLine Create a location-personalized daily quest (observation/reflection) and a distinct 1-hour **Experiential Quest** for today.
 
 $personalizationInstruction
 
@@ -458,24 +462,25 @@ JSON schema to output exactly:
 {
   "quest": {
     "title": string,               // one concrete local hook (e.g., riverfront, market street, old town)
-    "steps": [string, string, string], // 3 short, actionable steps with subtle specifics
+    "steps": [string, string, string], // 3 short, actionable steps with subtle specifics (observation/mindfulness)
     "reflectionPrompt": string     // 1 concise reflective question
   },
-  "microAdventure": {
-    "title": string,               // enticing, different angle from quest
-    "description": string          // exactly 2 sentences; feasible in ~60 minutes; safety-aware
+  "microAdventure": { // NOTE: This field is now used for the Experiential Quest
+    "title": string,               // enticing, MUST name a concrete experience type (e.g., 'Learn Tuscan Pasta', 'Forest Birding')
+    "description": string          // exactly 2 sentences; describes the experience type and general location (e.g., 'Find a small pottery studio near the central square. Spend 60 minutes observing the craft or asking about beginner workshops.')
   }
 }
 
 Rules:
 - Personalize with realistic, generic anchors (e.g., riverfront, main square, neighborhood park) based on what the area likely offers.
+- **The 'quest' (observation) and 'microAdventure' (experience) must be completely distinct in theme.**
+- The 'microAdventure' MUST suggest a tangible **activity type** (e.g., cooking, hiking, crafting, viewing art, watching a regional film, etc.) and NOT just wandering.
 - Be practical for ${context.dayPart} and ${context.isWeekend ? 'weekend' : 'weekday'}${context.weather != null ? ' in ' + context.weather!.toLowerCase() : ''}; adapt to ${context.season}.
-- Keep language concise, friendly, and in English. No emojis, no markdown. No lists beyond the 3 steps.
-- Provide one clear plan (no options), and make the quest and micro adventure distinct.
+- Keep language concise, friendly, and in English. No emojis, no markdown.
 ''';
   }
 
-  // 🎯 ENHANCED PROMPT: Uses _DailyContext for clean, contextual instructions
+  // 🎯 REFINED PROMPT: Pushes for concrete experiential activities
   String _buildQuestOnlyPrompt({required _DailyContext context, String? avoidTitle}) {
     final locLine = (context.lat != null && context.lon != null) ? 
         '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})' : '';
@@ -502,7 +507,7 @@ Rules:
 ''';
   }
 
-  // 🎯 ENHANCED PROMPT: Uses _DailyContext for clean, contextual instructions
+  // 🎯 REFINED PROMPT: Pushes for concrete experiential activities
   String _buildMicroOnlyPrompt({required _DailyContext context, String? avoidTitle}) {
     final locLine = (context.lat != null && context.lon != null) ? 
         '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})' : '';
@@ -510,11 +515,11 @@ Rules:
         ? ''
         : '\nAvoid repeating, paraphrasing, or using the same landmark/theme as: "$avoidTitle". Use a different angle or area.';
     final wx = context.weather != null ? '; weather=${context.weather}' : '';
-    final personalizationInstruction = 'Use location/coordinates to imagine a realistic local setting (e.g., architecture, terrain).';
+    final personalizationInstruction = 'Use location/coordinates to imagine a realistic, **EXPERIENCE-DRIVEN** local activity type (e.g., regional cuisine cooking, local artisan workshop, city-specific hiking trail).';
 
     return '''
 System instruction: Output ONLY JSON for a micro adventure object.
-User request: "${context.place}" $locLine. Context: season=${context.season}; time=${context.dayPart}$wx. Create a 1-hour micro adventure for today.
+User request: "${context.place}" $locLine. Context: season=${context.season}; time=${context.dayPart}$wx. Create a 1-hour **EXPERIENCE-DRIVEN** micro adventure for today.
 $personalizationInstruction
 Schema:
 {
@@ -522,9 +527,10 @@ Schema:
   "description": string
 }
 Rules:
-- Exactly 2 sentences; start with where to begin (generic anchor), then what to do.
-- Feasible in ~60 minutes, low-cost or free, and safe. Adjust for ${context.dayPart}${context.weather != null ? ' and ' + context.weather!.toLowerCase() : ''}.
-- Use generic-but-real anchors; do NOT invent precise place names; English only; no extra keys.$avoid
+- The title MUST name a concrete activity type (e.g., "Find a Local Painting Workshop", "Try Regional Street Food").
+- Description: Exactly 2 sentences. Start by identifying the type of experience and a generic-but-real location anchor (e.g., "Search for a beginner ceramics class near the historic district..."). The second sentence should outline the goal (e.g., "Spend the hour observing the craft or inquiring about introductory sessions.").
+- Feasible in ~60 minutes, low-cost or free (or inquiry about one), safe, and relevant to the time/weather.
+- English only; no extra keys.$avoid
 ''';
   }
 

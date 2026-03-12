@@ -1,7 +1,7 @@
 name: wanderwell
 description: "Flow is your serene travel companion, guiding you from a warm welcome to personalized itineraries and popular destinations, all within a beautifully designed dark travel theme."
 publish_to: "none"
-version: 1.0.0
+version: 1.0.1+2
 
 environment:
   sdk: ^3.6.0

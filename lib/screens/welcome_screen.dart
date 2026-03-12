@@ -6,6 +6,7 @@ import 'package:wanderwell/services/auth_service.dart';
 import 'package:wanderwell/screens/home_screen.dart';
 import 'package:wanderwell/theme.dart';
 import 'package:wanderwell/widgets/cta_button.dart';
+import 'package:wanderwell/utils/browser_info.dart';
 import 'dart:ui' as ui show ImageFilter;
 
 class WelcomeScreen extends StatefulWidget {
@@ -21,11 +22,34 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   late Animation<double> _slideAnimation;
   late Animation<double> _fadeAnimation;
   bool _isLoading = false;
+    bool _inAppBrowser = false;
+
 
   @override
   void initState() {
     super.initState();
     _setupAnimations();
+
+    // Detect restricted in-app browsers (LinkedIn/Instagram/etc.) on web
+    try {
+      _inAppBrowser = isInAppBrowser();
+      if (_inAppBrowser) {
+        // Log UA to help debug issues like Google 403 disallowed_useragent
+        try {
+          debugPrint('[Welcome] In-app browser detected. UA: ' + userAgentString());
+        } catch (_) {}
+      }
+    } catch (_) {
+      _inAppBrowser = false;
+    }
+
+    // Safety: if auth is already restored, skip this screen automatically.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (AuthService().isLoggedIn) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      }
+    });
   }
 
   void _setupAnimations() {
@@ -59,26 +83,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     try {
       final user = await AuthService().signInWithGoogle();
       if (user != null && mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const HomeScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(1.0, 0.0),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeInOut,
-                )),
-                child: child,
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 600),
-          ),
-        );
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       }
     } catch (e) {
       if (mounted) {
