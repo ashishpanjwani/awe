@@ -63,7 +63,7 @@ exports.generateDailyWonder = onSchedule(
       let wonder, embedding, checked;
       let avoidHint = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
-        wonder = await generateWonder(collectionTitles, key, avoidHint);
+        wonder = await generateWonder(collectionTitles, key, avoidHint, pickTitleFormat());
         embedding = await getEmbedding(
           `${wonder.title}. ${wonder.subtitle}. ${wonder.curiositySpark}. ${(wonder.tags || []).join(", ")}`
         );
@@ -118,7 +118,12 @@ exports.generateDailyWonder = onSchedule(
 
 // ── Wonder generation via Vertex AI ───────────────────────────────────────
 
-async function generateWonder(collectionTitles, dateKey, avoidHint = null) {
+const _TITLE_FORMATS = ['A', 'B', 'C', 'D', 'E', 'F'];
+function pickTitleFormat() {
+  return _TITLE_FORMATS[Math.floor(Math.random() * _TITLE_FORMATS.length)];
+}
+
+async function generateWonder(collectionTitles, dateKey, avoidHint = null, titleFormat = pickTitleFormat()) {
   const ai = getAI();
 
   const avoidTopics = collectionTitles.length ? collectionTitles.join(", ") : "None";
@@ -141,14 +146,14 @@ ${hintLine}
 - Tags should be 3-5 specific keywords (not generic like "travel" or "beautiful")
 - "imageSearchQuery": a 3-6 word search query optimized for finding a beautiful, relevant landscape photo on Unsplash. Be specific (e.g., "Lalibela rock hewn church Ethiopia" not just "Lalibela"). For traditions/people/sounds, describe the visual scene rather than the abstract concept.
 
-TITLE — before writing it, pick ONE of these formats and commit to it:
+TITLE — you MUST use Format ${titleFormat} below. No other format is acceptable.
   A) The actual name of the place or phenomenon as locals call it (e.g., "Kawah Ijen", "The Door to Hell", "Blood Falls")
   B) A short, punchy phrase — 2-4 words maximum, no "The [Adjective] [Noun] of" construction (e.g., "Salt and Fire", "One Hundred Years of Ice", "The Last Muezzin")
   C) A specific number or measurement that reframes everything (e.g., "432 Hertz", "Forty Thousand Years", "Seventeen Seconds")
   D) A question or provocation (e.g., "Why Does This Lake Sing?", "Who Built This Road?")
   E) A person's name or a direct quote (e.g., "Salim Ali's Birds", "They Call It the Weeping Wall")
   F) A place name + unexpected juxtaposition (e.g., "Tokyo's Last Rice Farmer", "Beneath Mumbai")
-Never use the pattern "The [Adjective/Participle] [Noun] of [Abstract/Place]" — it is overused.
+Your title MUST follow Format ${titleFormat}. Never use "The [Adjective/Participle] [Noun] of [Abstract/Place]".
 
 SUBTITLE — one sentence that earns its place. Must NOT start with "Where" or "When". Options:
   - A surprising fact or statistic ("The trees here are older than writing")
@@ -575,7 +580,8 @@ exports.generateCollectionWonders = onCall(
               colTitle,
               colDescription,
               [...usedTitles],
-              avoidHint
+              avoidHint,
+              pickTitleFormat()
             );
           } catch (e) {
             console.warn(`[CollGen] Generation error attempt ${attempt}:`, e.message);
@@ -663,7 +669,7 @@ exports.generateCollectionWonders = onCall(
   }
 );
 
-async function generateCollectionWonder(collectionTitle, collectionDescription, avoidTitles, avoidHint = null) {
+async function generateCollectionWonder(collectionTitle, collectionDescription, avoidTitles, avoidHint = null, titleFormat = pickTitleFormat()) {
   const ai = getAI();
   const avoidLine = avoidTitles.length ? avoidTitles.join("; ") : "None";
   const hintLine = avoidHint
@@ -690,14 +696,14 @@ ${hintLine}
 - Tags should be 3-5 specific keywords (not generic like "travel" or "beautiful")
 - "imageSearchQuery": a 3-6 word search query optimized for Unsplash
 
-TITLE — before writing it, pick ONE of these formats and commit to it:
+TITLE — you MUST use Format ${titleFormat} below. No other format is acceptable.
   A) The actual name of the place or phenomenon as locals call it (e.g., "Kawah Ijen", "Blood Falls", "The Door to Hell")
   B) A short punchy phrase — 2-4 words, no "The [Adjective] [Noun] of" construction (e.g., "Salt and Fire", "The Last Muezzin", "One Hundred Years of Ice")
   C) A specific number or measurement (e.g., "432 Hertz", "Forty Thousand Years", "Seventeen Seconds")
   D) A question or provocation (e.g., "Why Does This Lake Sing?", "Who Built This Road?")
   E) A person's name or direct quote (e.g., "Salim Ali's Birds", "They Call It the Weeping Wall")
   F) A place + unexpected juxtaposition (e.g., "Tokyo's Last Rice Farmer", "Beneath Mumbai")
-Never use "The [Adjective/Participle] [Noun] of [Abstract/Place]" — it is overused and generic.
+Your title MUST follow Format ${titleFormat}. Never use "The [Adjective/Participle] [Noun] of [Abstract/Place]".
 
 SUBTITLE — one sentence that earns its place. Must NOT start with "Where" or "When". Options:
   - A surprising fact or statistic ("The trees here are older than writing")
@@ -814,7 +820,7 @@ exports.generateDailyWonderOnDemand = onCall(
       let wonder, embedding, checked;
       let avoidHint = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
-        wonder = await generateWonder(collectionTitles, dateKey, avoidHint);
+        wonder = await generateWonder(collectionTitles, dateKey, avoidHint, pickTitleFormat());
         embedding = await getEmbedding(
           `${wonder.title}. ${wonder.subtitle}. ${wonder.curiositySpark}. ${(wonder.tags || []).join(", ")}`
         );
