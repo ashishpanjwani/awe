@@ -1,14 +1,12 @@
-// ignore_for_file: unused_import
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_ai/firebase_ai.dart';
 import 'package:wanderwell/firebase_options.dart';
 import 'package:wanderwell/theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:wanderwell/bloc/auth_cubit.dart';
 import 'package:wanderwell/widgets/app_viewport.dart';
 import 'package:wanderwell/screens/splash_screen.dart';
-import 'package:wanderwell/screens/home_screen.dart';
+import 'package:wanderwell/widgets/bottom_nav_shell.dart';
 import 'package:wanderwell/screens/welcome_screen.dart';
 import 'package:wanderwell/screens/onboarding_screen.dart';
 import 'package:wanderwell/screens/itinerary_builder_screen.dart';
@@ -20,20 +18,32 @@ import 'package:wanderwell/screens/saved_itineraries_screen.dart';
 import 'package:wanderwell/screens/privacy_policy_screen.dart';
 import 'package:wanderwell/screens/terms_and_conditions_screen.dart';
 import 'package:wanderwell/screens/settings_screen.dart';
+import 'package:wanderwell/screens/wonder_archive_screen.dart';
+import 'package:wanderwell/screens/paywall_screen.dart';
+import 'package:wanderwell/services/premium_service.dart';
+import 'package:wanderwell/screens/past_wonders_screen.dart';
+import 'package:wanderwell/screens/collection_detail_screen.dart';
+import 'package:wanderwell/screens/wonder_reader_screen.dart';
+import 'package:wanderwell/screens/journey_list_screen.dart';
+import 'package:wanderwell/screens/journey_detail_screen.dart';
 import 'package:wanderwell/services/auth_service.dart';
-import 'package:wanderwell/services/destination_service.dart';
-import 'package:wanderwell/services/feature_service.dart';
-import 'package:wanderwell/services/weather_service.dart';
-import 'package:wanderwell/models/destination.dart';
-import 'package:wanderwell/screens/destination_detail_screen.dart';
+import 'package:wanderwell/services/notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('[Main] Widgets binding initialized');
+  await dotenv.load(fileName: '.env');
+  print('[Main] Dotenv loaded');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print('[Main] Firebase initialized');
+  await PremiumService().initialize();
+  print('[Main] PremiumService initialized');
+  await NotificationService().initialize();
+  print('[Main] NotificationService initialized');
 
   runApp(const FlowApp());
   print('[Main] runApp called');
@@ -49,9 +59,8 @@ class FlowApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Awe – Let the world surprise you',
         debugShowCheckedModeBanner: false,
-        theme: lightTheme,
-        darkTheme: darkTheme,
-        themeMode: ThemeMode.dark, // Force dark mode for the travel theme
+        theme: aweTheme,
+        themeMode: ThemeMode.light,
         // Wrap every screen in a centered, mobile-width viewport for desktop/tablet
         builder: (context, child) => AppViewport(child: child),
         // Use named routes so Flutter Web updates the URL and browser history.
@@ -62,7 +71,18 @@ class FlowApp extends StatelessWidget {
           '/splash': (context) => const SplashScreen(),
           // Legacy: redirect old bookmarks '/home' -> '/'
           '/home': (context) => const _LegacyHomeRedirect(),
-          '/itinerary': (context) => const ItineraryBuilderScreen(),
+          '/wonder/archive': (context) => const WonderArchiveScreen(),
+          '/paywall': (context) => const PaywallScreen(),
+          '/wonder/past': (context) => const PastWondersScreen(),
+          '/journeys': (context) => const JourneyListScreen(),
+          '/itinerary': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments;
+            String? initialDest;
+            if (args is Map) {
+              initialDest = args['destination'] as String?;
+            }
+            return ItineraryBuilderScreen(initialDestination: initialDest);
+          },
           '/loading': (context) {
             final args = ModalRoute.of(context)!.settings.arguments;
             Future<Map<String, dynamic>>? task;
@@ -88,7 +108,7 @@ class FlowApp extends StatelessWidget {
             final map = (args is Map<String, dynamic>) ? args : <String, dynamic>{};
             return ItineraryResultScreen(data: map);
           },
-          '/quest': (context) => const QuestScreen(),
+          // '/quest': (context) => const QuestScreen(), // Quest feature temporarily disabled
           '/profile': (context) => const ProfileScreen(),
           '/saved_itineraries': (context) => const SavedItinerariesScreen(),
           '/privacy': (context) => const PrivacyPolicyScreen(),
@@ -101,69 +121,41 @@ class FlowApp extends StatelessWidget {
         onGenerateRoute: (settings) {
           final name = settings.name ?? '';
 
-          // Support dynamic destination detail URLs like '/dest/<id>'
-          if (name.startsWith('/dest/')) {
-            final id = name.substring('/dest/'.length);
+          if (name.startsWith('/journeys/')) {
+            final id = name.substring('/journeys/'.length);
             return MaterialPageRoute(
-              settings: RouteSettings(name: name, arguments: settings.arguments),
-              builder: (_) {
-                // If the caller already passed a Destination as arguments, use it.
-                final args = settings.arguments;
-                if (args is Map && args['destination'] != null) {
-                  final dest = args['destination'];
-                  if (dest is Destination) {
-                    return DestinationDetailScreen(destination: dest);
-                  }
-                }
-                // Otherwise fetch by ID (supports deep links and reloads on web).
-                return _DestinationDetailRouteLoader(id: id);
-              },
+              settings: RouteSettings(name: name),
+              builder: (_) => JourneyDetailScreen(journeyId: id),
             );
           }
+
+          if (name.startsWith('/collections/')) {
+            final id = name.substring('/collections/'.length);
+            return MaterialPageRoute(
+              settings: RouteSettings(name: name),
+              builder: (_) => CollectionDetailScreen(collectionId: id),
+            );
+          }
+
+          if (name.startsWith('/wonder/read/')) {
+            final id = name.substring('/wonder/read/'.length);
+            return MaterialPageRoute(
+              settings: RouteSettings(name: name),
+              builder: (_) => WonderReaderScreen(wonderId: id, source: 'wonders'),
+            );
+          }
+
+          if (name.startsWith('/wonder/daily/')) {
+            final id = name.substring('/wonder/daily/'.length);
+            return MaterialPageRoute(
+              settings: RouteSettings(name: name),
+              builder: (_) => WonderReaderScreen(wonderId: id, source: 'daily'),
+            );
+          }
+
           return null;
         },
       ),
-    );
-  }
-}
-
-/// Loader page that fetches a Destination by id and then shows the detail screen.
-class _DestinationDetailRouteLoader extends StatelessWidget {
-  final String id;
-  const _DestinationDetailRouteLoader({required this.id});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Destination?>(
-      future: DestinationService().getDestinationById(id),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const LoadingScreen();
-        }
-        final dest = snapshot.data;
-        if (dest == null) {
-          // Simple not-found page; you can polish this later
-          return Scaffold(
-            backgroundColor: FlowColors.primaryDark,
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.search_off, color: Colors.white70),
-                  const SizedBox(height: 12),
-                  const Text('Destination not found', style: TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 24),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false),
-                    child: const Text('Back to Home'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        return DestinationDetailScreen(destination: dest);
-      },
     );
   }
 }
@@ -180,16 +172,33 @@ class _RootDeciderState extends State<_RootDecider> {
   bool _authInitDone = false;
   bool _prefsLoaded = false;
   bool _onboardingDone = false;
+  bool? _isLoggedIn;
+
+  StreamSubscription<firebase_auth.User?>? _authSub;
 
   @override
   void initState() {
     super.initState();
-    // Initialize auth bootstrapping once.
     AuthService().initialize().whenComplete(() {
       if (mounted) setState(() => _authInitDone = true);
     });
-    // Load onboarding flag
     _loadOnboarding();
+
+    // Use a subscription instead of StreamBuilder so the build method
+    // only re-runs when auth state genuinely changes (login ↔ logout),
+    // not on every stream re-emission during navigation transitions.
+    _authSub = firebase_auth.FirebaseAuth.instance.authStateChanges().listen((user) {
+      final loggedIn = user != null || AuthService().isLoggedIn;
+      if (_isLoggedIn != loggedIn && mounted) {
+        setState(() => _isLoggedIn = loggedIn);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadOnboarding() async {
@@ -213,28 +222,17 @@ class _RootDeciderState extends State<_RootDecider> {
 
   @override
   Widget build(BuildContext context) {
-    // While prerequisites are loading, show the Splash visual without pushing routes.
     if (!(_authInitDone && _prefsLoaded)) {
       return const SplashScreen();
     }
 
-    // Listen to auth changes so the root swaps between Welcome and Home reactively.
-    return StreamBuilder<firebase_auth.User?>(
-      stream: firebase_auth.FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SplashScreen();
-        }
-        final loggedIn = snapshot.data != null || AuthService().isLoggedIn;
+    final loggedIn = _isLoggedIn ?? AuthService().isLoggedIn;
 
-        // Show onboarding only for users who are not logged in and haven't completed it.
-        if (!loggedIn && !_onboardingDone) {
-          return OnboardingScreen(onFinished: _completeOnboarding);
-        }
+    if (!loggedIn && !_onboardingDone) {
+      return OnboardingScreen(onFinished: _completeOnboarding);
+    }
 
-        return loggedIn ? const HomeScreen() : const WelcomeScreen();
-      },
-    );
+    return loggedIn ? const BottomNavShell() : const WelcomeScreen();
   }
 }
 

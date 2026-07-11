@@ -41,12 +41,11 @@ class CtaButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: cs.secondary,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1.0),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0E2A46).withValues(alpha: 0.20), // FlowColors.ctaGlowOuter
-              blurRadius: 24,
-              offset: const Offset(0, 6),
+              color: cs.secondary.withValues(alpha: 0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -74,7 +73,7 @@ class CtaButton extends StatelessWidget {
               ],
               Text(
                 label,
-                style: GoogleFonts.raleway(
+                style: GoogleFonts.sourceSans3(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: cs.onSecondary,

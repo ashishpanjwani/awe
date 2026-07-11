@@ -23,9 +23,9 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
   TabController? _tabController;
   int _index = 0;
   double _tabAnimationValue = 0.0;
-  bool _isSaved = false; // toggles when user saves from this screen
-  String? _savedId; // Firestore doc id when saved
-  bool _openedFromSaved = false; // if true, show delete instead of save toggle
+  bool _isSaved = false;
+  String? _savedId;
+  bool _openedFromSaved = false;
 
   @override
   void initState() {
@@ -36,7 +36,6 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
     final e = widget.data['endDate']?.toString();
     _startDate = s != null ? DateTime.tryParse(s) : null;
     _endDate = e != null ? DateTime.tryParse(e) : null;
-    // If navigated from Saved list, we inject a meta key '__savedId'
     final metaSavedId = widget.data['__savedId']?.toString();
     if (metaSavedId != null && metaSavedId.isNotEmpty) {
       _openedFromSaved = true;
@@ -44,13 +43,9 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
       _savedId = metaSavedId;
     }
     if (_days.isNotEmpty) {
-      _tabController =
-          TabController(length: _days.length.clamp(1, 30), vsync: this);
+      _tabController = TabController(length: _days.length.clamp(1, 30), vsync: this);
       _tabController!.animation?.addListener(() {
-        // Track continuous swipe progress for pill highlight
-        setState(() {
-          _tabAnimationValue = _tabController!.animation!.value;
-        });
+        setState(() => _tabAnimationValue = _tabController!.animation!.value);
       });
       _tabController!.addListener(() {
         if (_tabController!.indexIsChanging) return;
@@ -71,36 +66,37 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
   Widget build(BuildContext context) {
     final days = _days;
     final destination = _destination;
-    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: FlowColors.primaryDark,
+      backgroundColor: AweColors.background,
       appBar: AppBar(
-        backgroundColor: FlowColors.primaryDark,
+        backgroundColor: AweColors.background,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: _TwoLineTitle(
           title: destination,
           subtitle: _formatDateRange(_startDate, _endDate),
         ),
         leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-            onPressed: () => Navigator.of(context).maybePop()),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: AweColors.textPrimary),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         centerTitle: true,
         actions: [
           if (_openedFromSaved)
             IconButton(
               tooltip: 'Delete itinerary',
-              icon: const Icon(Icons.delete_outline, color: Colors.white),
+              icon: const Icon(Icons.delete_outline, color: AweColors.accentTerracotta),
               onPressed: () => _onDeletePressed(context),
             )
           else if ((widget.data['error'] as String?)?.isNotEmpty == true)
-            SizedBox.shrink()
+            const SizedBox.shrink()
           else
             IconButton(
               tooltip: _isSaved ? 'Unsave itinerary' : 'Save itinerary',
               icon: Icon(
                 _isSaved ? Icons.bookmark : Icons.bookmark_add_outlined,
-                color: Colors.white,
+                color: _isSaved ? AweColors.accentGold : AweColors.textPrimary,
               ),
               onPressed: () async {
                 if (_isSaved) {
@@ -109,19 +105,16 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
                   await _onSavePressed(context);
                 }
               },
-            )
+            ),
         ],
         bottom: days.isEmpty
             ? null
             : PreferredSize(
                 preferredSize: const Size.fromHeight(60),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.only(left: 16, right: 16, bottom: 10),
+                  padding: const EdgeInsets.only(left: 16, right: 16, bottom: 10),
                   child: _DayPillTabs(
-                    labels: [
-                      for (int i = 0; i < days.length; i++) 'Day ${i + 1}'
-                    ],
+                    labels: [for (int i = 0; i < days.length; i++) 'Day ${i + 1}'],
                     index: _index,
                     progress: _tabAnimationValue,
                     onChanged: (i) {
@@ -143,9 +136,7 @@ class _ItineraryResultScreenState extends State<ItineraryResultScreen>
                     date: day['date'] as String? ?? '',
                     title: day['title'] as String? ?? '',
                     summary: day['summary'] as String? ?? '',
-                    activities: (day['activities'] as List?)
-                            ?.cast<Map<String, dynamic>>() ??
-                        const [],
+                    activities: (day['activities'] as List?)?.cast<Map<String, dynamic>>() ?? const [],
                   ),
               ],
             ),
@@ -157,23 +148,9 @@ extension on _ItineraryResultScreenState {
   String? _formatDateRange(DateTime? s, DateTime? e) {
     if (s == null || e == null) return null;
     String fmt(DateTime d) {
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec'
-      ];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       return '${months[d.month - 1]} ${d.day}, ${d.year}';
     }
-
     return '${fmt(s)} - ${fmt(e)}';
   }
 
@@ -195,26 +172,33 @@ extension on _ItineraryResultScreenState {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: FlowColors.cardSurfaceDark,
-          title: const Text('Save Itinerary',
-              style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Save Itinerary',
+            style: GoogleFonts.dmSerifDisplay(fontSize: 22, color: AweColors.textPrimary),
+          ),
           content: TextField(
             controller: nameCtrl,
             autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
+            style: GoogleFonts.sourceSans3(color: AweColors.textPrimary),
+            cursorColor: AweColors.accentTeal,
+            decoration: InputDecoration(
               labelText: 'Name',
-              labelStyle: TextStyle(color: Colors.white70),
+              labelStyle: GoogleFonts.sourceSans3(color: AweColors.textSecondary),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: AweColors.accentTeal),
+              ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: Text('Cancel', style: GoogleFonts.sourceSans3(color: AweColors.textSecondary)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()),
-              child: const Text('Save'),
+              child: Text('Save', style: GoogleFonts.sourceSans3(fontWeight: FontWeight.w600, color: AweColors.accentTeal)),
             ),
           ],
         );
@@ -235,27 +219,21 @@ extension on _ItineraryResultScreenState {
         data: widget.data,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Itinerary saved')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Itinerary saved')));
       setState(() {
         _isSaved = true;
         _savedId = id;
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     }
   }
 
   Future<void> _onUnsavePressed(BuildContext context) async {
     final user = AuthService().currentUser;
     if (user == null || _savedId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You need to be signed in.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You need to be signed in.')));
       return;
     }
     try {
@@ -265,14 +243,10 @@ extension on _ItineraryResultScreenState {
         _isSaved = false;
         _savedId = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Removed from saved itineraries')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Removed from saved itineraries')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to remove: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to remove: $e')));
     }
   }
 
@@ -280,16 +254,13 @@ extension on _ItineraryResultScreenState {
     final user = AuthService().currentUser;
     final id = _savedId;
     if (user == null || id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Missing itinerary id or user')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Missing itinerary id or user')));
       return;
     }
     await _showConfirmBottomSheet(
       context,
       title: 'Delete this itinerary?',
-      message:
-          'This will permanently remove it from your saved itineraries. You can always generate a new one later.',
+      message: 'This will permanently remove it from your saved itineraries. You can always generate a new one later.',
       confirmLabel: 'Delete',
       icon: Icons.delete_outline,
       iconColor: Colors.redAccent,
@@ -314,15 +285,13 @@ extension on _ItineraryResultScreenState {
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: FlowColors.cardSurfaceDark,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final theme = Theme.of(ctx);
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            final cs = theme.colorScheme;
             return Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               child: Column(
@@ -335,20 +304,14 @@ extension on _ItineraryResultScreenState {
                       const SizedBox(width: 8),
                       Text(
                         title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: FlowColors.textLight,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: GoogleFonts.dmSerifDisplay(fontSize: 20, color: AweColors.textPrimary),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Text(
                     message,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: FlowColors.textLight.withValues(alpha: 0.9),
-                      height: 1.45,
-                    ),
+                    style: GoogleFonts.sourceSans3(fontSize: 15, height: 1.5, color: AweColors.textBody),
                   ),
                   const SizedBox(height: 20),
                   Row(
@@ -356,31 +319,23 @@ extension on _ItineraryResultScreenState {
                       Expanded(
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(56),
-                            foregroundColor: FlowColors.textLight,
-                            side: BorderSide(
-                              color: FlowColors.cardBorderDark
-                                  .withValues(alpha: 0.16),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
+                            minimumSize: const Size.fromHeight(52),
+                            foregroundColor: AweColors.textPrimary,
+                            side: const BorderSide(color: AweColors.border),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
-                          onPressed:
-                              running ? null : () => Navigator.of(ctx).pop(),
-                          child: const Text('Cancel'),
+                          onPressed: running ? null : () => Navigator.of(ctx).pop(),
+                          child: Text('Cancel', style: GoogleFonts.sourceSans3(fontWeight: FontWeight.w600)),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(56),
-                            backgroundColor: cs.secondary,
-                            foregroundColor: cs.onSecondary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
+                            minimumSize: const Size.fromHeight(52),
+                            backgroundColor: Colors.redAccent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                           onPressed: running
                               ? null
@@ -392,30 +347,23 @@ extension on _ItineraryResultScreenState {
                                   } catch (e) {
                                     if (ctx.mounted) {
                                       ScaffoldMessenger.of(ctx).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              'Something went wrong. Please try again.'),
-                                        ),
+                                        const SnackBar(content: Text('Something went wrong. Please try again.')),
                                       );
                                     }
                                     setModalState(() => running = false);
                                   }
                                 },
                           child: running
-                              ? SizedBox(
+                              ? const SizedBox(
                                   height: 24,
                                   width: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.6,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        cs.onSecondary),
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2.6, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                                 )
-                              : Text(confirmLabel),
+                              : Text(confirmLabel, style: GoogleFonts.sourceSans3(fontWeight: FontWeight.w600)),
                         ),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             );
@@ -426,6 +374,8 @@ extension on _ItineraryResultScreenState {
   }
 }
 
+// ─── Empty / Error view ────────────────────────────────────────────────────
+
 class _EmptyView extends StatelessWidget {
   const _EmptyView({required this.raw});
   final Map<String, dynamic> raw;
@@ -433,7 +383,6 @@ class _EmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasError = (raw['error'] as String?)?.isNotEmpty == true;
-    final errorMessage = (raw['error'] as String?) ?? '';
 
     if (hasError) {
       return Center(
@@ -442,7 +391,6 @@ class _EmptyView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Friendly illustration
               Image.asset(
                 'assets/images/minimal_travel_error_illustration_airplane_warning_sign_gray_1763394371352.png',
                 width: 220,
@@ -452,39 +400,20 @@ class _EmptyView extends StatelessWidget {
               Text(
                 "We couldn't generate your itinerary",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.raleway(
-                  color: FlowColors.textLight,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
+                style: GoogleFonts.dmSerifDisplay(fontSize: 20, color: AweColors.textPrimary),
               ),
               const SizedBox(height: 8),
               Text(
                 'The service looks a bit busy right now. Please try again in a little while.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.raleway(
-                  color: FlowColors.textGrey,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: GoogleFonts.sourceSans3(fontSize: 15, color: AweColors.textSecondary, height: 1.5),
               ),
-              // if (errorMessage.isNotEmpty) ...[
-              //   const SizedBox(height: 14),
-              //   Text(
-              //     errorMessage,
-              //     textAlign: TextAlign.center,
-              //     style: GoogleFonts.robotoMono(
-              //       color: Colors.white70,
-              //       fontSize: 12,
-              //     ),
-              //   ),
-              // ],
             ],
           ),
         ),
       );
     }
 
-    // Generic empty fallback when there are no days but also no explicit error
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -500,20 +429,13 @@ class _EmptyView extends StatelessWidget {
             Text(
               'No itinerary to show yet',
               textAlign: TextAlign.center,
-              style: GoogleFonts.raleway(
-                color: FlowColors.textLight,
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
-              ),
+              style: GoogleFonts.dmSerifDisplay(fontSize: 20, color: AweColors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               'Please go back and try generating again.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.raleway(
-                color: FlowColors.textGrey,
-                fontWeight: FontWeight.w700,
-              ),
+              style: GoogleFonts.sourceSans3(fontSize: 15, color: AweColors.textSecondary, height: 1.5),
             ),
           ],
         ),
@@ -521,6 +443,8 @@ class _EmptyView extends StatelessWidget {
     );
   }
 }
+
+// ─── Day timeline ──────────────────────────────────────────────────────────
 
 class _DayTimeline extends StatelessWidget {
   const _DayTimeline({
@@ -537,37 +461,30 @@ class _DayTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String _cleanInline(String s) {
+    String cleanInline(String s) {
       if (s.isEmpty) return s;
-      // Replace any newlines or carriage returns with single spaces and
-      // collapse repeated whitespace to avoid vertical text artifacts.
       final noBreaks = s.replaceAll(RegExp(r"[\r\n]+"), ' ');
       return noBreaks.replaceAll(RegExp(r"\s{2,}"), ' ').trim();
     }
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      itemCount: (activities.length) + 1,
+      itemCount: activities.length + 1,
       itemBuilder: (context, idx) {
         if (idx == 0) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (title.isNotEmpty)
-                Text(_cleanInline(title),
-                    style: GoogleFonts.raleway(
-                        color: FlowColors.textLight,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18)),
+                Text(
+                  cleanInline(title),
+                  style: GoogleFonts.dmSerifDisplay(fontSize: 20, color: AweColors.textPrimary),
+                ),
               if (summary.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
-                  _cleanInline(summary),
-                  style: GoogleFonts.raleway(
-                    color: FlowColors.textGrey,
-                    fontWeight: FontWeight.w600,
-                    height: 1.45, // avoid fractional line rounding overflows
-                  ),
+                  cleanInline(summary),
+                  style: GoogleFonts.sourceSans3(fontSize: 14, color: AweColors.textSecondary, height: 1.5),
                   textHeightBehavior: const TextHeightBehavior(
                     applyHeightToFirstAscent: false,
                     applyHeightToLastDescent: false,
@@ -590,8 +507,7 @@ class _DayTimeline extends StatelessWidget {
 }
 
 class _TimelineTileCard extends StatelessWidget {
-  const _TimelineTileCard(
-      {required this.activity, required this.isFirst, required this.isLast});
+  const _TimelineTileCard({required this.activity, required this.isFirst, required this.isLast});
   final Map<String, dynamic> activity;
   final bool isFirst;
   final bool isLast;
@@ -599,15 +515,15 @@ class _TimelineTileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tod = (activity['timeOfDay'] ?? '').toString();
-    String _cleanInline(String s) {
+    String cleanInline(String s) {
       if (s.isEmpty) return s;
       final noBreaks = s.replaceAll(RegExp(r"[\r\n]+"), ' ');
       return noBreaks.replaceAll(RegExp(r"\s{2,}"), ' ').trim();
     }
 
-    final title = _cleanInline((activity['title'] ?? '').toString());
-    final location = _cleanInline((activity['location'] ?? '').toString());
-    final notes = _cleanInline((activity['notes'] ?? '').toString());
+    final title = cleanInline((activity['title'] ?? '').toString());
+    final location = cleanInline((activity['location'] ?? '').toString());
+    final notes = cleanInline((activity['notes'] ?? '').toString());
     final cost = (activity['cost'] ?? '').toString();
 
     return TimelineTile(
@@ -615,21 +531,15 @@ class _TimelineTileCard extends StatelessWidget {
       isLast: isLast,
       alignment: TimelineAlign.manual,
       lineXY: 0.08,
-      beforeLineStyle: LineStyle(
-        color: Colors.white.withValues(alpha: 0.14),
-        thickness: 2,
-      ),
-      afterLineStyle: LineStyle(
-        color: Colors.white.withValues(alpha: 0.14),
-        thickness: 2,
-      ),
+      beforeLineStyle: LineStyle(color: AweColors.divider, thickness: 2),
+      afterLineStyle: LineStyle(color: AweColors.divider, thickness: 2),
       indicatorStyle: IndicatorStyle(
         width: 12,
         height: 12,
         indicator: Container(
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            color: FlowColors.softTealLight,
+            color: AweColors.accentTeal,
           ),
         ),
       ),
@@ -637,43 +547,38 @@ class _TimelineTileCard extends StatelessWidget {
         margin: const EdgeInsets.only(left: 12, bottom: 14),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: FlowColors.cardSurfaceDark,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
+          border: Border.all(color: AweColors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(_iconForTimeOfDay(tod),
-                    color: FlowColors.textLight, size: 18),
+                Icon(_iconForTimeOfDay(tod), color: AweColors.accentSlate, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     title,
-                    style: GoogleFonts.raleway(
-                        color: FlowColors.textLight,
-                        fontWeight: FontWeight.w800),
+                    style: GoogleFonts.sourceSans3(
+                      color: AweColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
                 if (cost.isNotEmpty)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: FlowColors.chipBgDark,
+                      color: AweColors.chipBackground,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: FlowColors.chipBorderDark
-                              .withValues(alpha: 0.14)),
                     ),
-                    child: Text(cost,
-                        style: GoogleFonts.raleway(
-                            color: FlowColors.textGrey,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12)),
+                    child: Text(
+                      cost,
+                      style: GoogleFonts.ibmPlexMono(color: AweColors.textSecondary, fontSize: 11),
+                    ),
                   ),
               ],
             ),
@@ -681,17 +586,12 @@ class _TimelineTileCard extends StatelessWidget {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  const Icon(Icons.place_outlined,
-                      size: 16, color: FlowColors.textGrey),
+                  const Icon(Icons.place_outlined, size: 16, color: AweColors.textSecondary),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       location,
-                      style: GoogleFonts.raleway(
-                        color: FlowColors.textGrey,
-                        fontWeight: FontWeight.w700,
-                        height: 1.35,
-                      ),
+                      style: GoogleFonts.sourceSans3(color: AweColors.textSecondary, fontSize: 13, height: 1.4),
                       textHeightBehavior: const TextHeightBehavior(
                         applyHeightToFirstAscent: false,
                         applyHeightToLastDescent: false,
@@ -705,11 +605,7 @@ class _TimelineTileCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 notes,
-                style: GoogleFonts.raleway(
-                  color: FlowColors.textLight,
-                  fontWeight: FontWeight.w600,
-                  height: 1.45, // reduce 1px overflow in some fonts/dpis
-                ),
+                style: GoogleFonts.sourceSans3(color: AweColors.textBody, fontSize: 14, height: 1.5),
                 textHeightBehavior: const TextHeightBehavior(
                   applyHeightToFirstAscent: false,
                   applyHeightToLastDescent: false,
@@ -742,20 +638,7 @@ class _TimelineTileCard extends StatelessWidget {
   }
 }
 
-class _DayPillTabs extends StatefulWidget {
-  const _DayPillTabs(
-      {required this.labels,
-      required this.index,
-      this.progress,
-      required this.onChanged});
-  final List<String> labels;
-  final int index;
-  final double? progress; // continuous progress from TabController.animation
-  final ValueChanged<int> onChanged;
-
-  @override
-  State<_DayPillTabs> createState() => _DayPillTabsState();
-}
+// ─── App bar title ─────────────────────────────────────────────────────────
 
 class _TwoLineTitle extends StatelessWidget {
   const _TwoLineTitle({required this.title, this.subtitle});
@@ -764,43 +647,47 @@ class _TwoLineTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: FlowColors.textLight,
-            fontWeight: FontWeight.w700,
-            fontSize: 18, // slightly smaller for more breathing room
-          ),
+          style: GoogleFonts.dmSerifDisplay(fontSize: 20, color: AweColors.textPrimary),
         ),
         if (subtitle != null)
           Text(
             subtitle!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: FlowColors.textGrey,
-              fontWeight: FontWeight.w700,
-            ),
+            style: GoogleFonts.ibmPlexMono(fontSize: 11, letterSpacing: 0.3, color: AweColors.textSecondary),
           ),
       ],
     );
   }
 }
 
+// ─── Day pill tabs ─────────────────────────────────────────────────────────
+
+class _DayPillTabs extends StatefulWidget {
+  const _DayPillTabs({required this.labels, required this.index, this.progress, required this.onChanged});
+  final List<String> labels;
+  final int index;
+  final double? progress;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_DayPillTabs> createState() => _DayPillTabsState();
+}
+
 class _DayPillTabsState extends State<_DayPillTabs> {
   final _scroll = ScrollController();
   static const double _height = 44;
   static const double _pillPadding = 4;
-  static const double _tileWidth = 92; // fixed per-segment width
+  static const double _tileWidth = 92;
 
   @override
   void didUpdateWidget(covariant _DayPillTabs oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.index != widget.index) {
-      // Ensure selected tab is visible
       final target = widget.index * _tileWidth;
       _scroll.animateTo(
         target.clamp(0, _scroll.position.maxScrollExtent),
@@ -813,10 +700,8 @@ class _DayPillTabsState extends State<_DayPillTabs> {
   @override
   Widget build(BuildContext context) {
     final totalWidth = widget.labels.length * _tileWidth;
+    final effectiveLeft = (widget.progress ?? widget.index.toDouble()) * _tileWidth + _pillPadding;
 
-    final effectiveLeft =
-        (widget.progress ?? widget.index.toDouble()) * _tileWidth +
-            _pillPadding;
     return SingleChildScrollView(
       controller: _scroll,
       scrollDirection: Axis.horizontal,
@@ -826,7 +711,6 @@ class _DayPillTabsState extends State<_DayPillTabs> {
         height: _height,
         child: Stack(
           children: [
-            // Sliding selected pill
             Positioned(
               top: _pillPadding,
               bottom: _pillPadding,
@@ -836,14 +720,11 @@ class _DayPillTabsState extends State<_DayPillTabs> {
                 duration: const Duration(milliseconds: 120),
                 curve: Curves.easeOutCubic,
                 decoration: BoxDecoration(
-                  borderRadius:
-                      BorderRadius.circular((_height - _pillPadding * 2) / 2),
-                  color: FlowColors.cardSurfaceDark,
+                  borderRadius: BorderRadius.circular((_height - _pillPadding * 2) / 2),
+                  color: AweColors.accentSlate,
                 ),
               ),
             ),
-
-            // Labels row
             Row(
               children: List.generate(widget.labels.length, (i) {
                 final isSelected = (widget.progress == null)
@@ -860,20 +741,10 @@ class _DayPillTabsState extends State<_DayPillTabs> {
                         widget.labels[i],
                         overflow: TextOverflow.fade,
                         softWrap: false,
-                        style: GoogleFonts.raleway(
-                          color: isSelected ? Colors.white : Colors.white70,
-                          fontWeight:
-                              isSelected ? FontWeight.w800 : FontWeight.w700,
-                          fontSize: 15,
-                          shadows: isSelected
-                              ? [
-                                  Shadow(
-                                    color: Colors.black.withValues(alpha: 0.35),
-                                    offset: const Offset(0, 2),
-                                    blurRadius: 3,
-                                  )
-                                ]
-                              : null,
+                        style: GoogleFonts.sourceSans3(
+                          color: isSelected ? Colors.white : AweColors.textSecondary,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                          fontSize: 14,
                         ),
                       ),
                     ),

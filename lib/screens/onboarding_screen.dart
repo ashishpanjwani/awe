@@ -18,24 +18,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _pages = const [
     _OnbPage(
       imagePath: 'assets/images/onboarding1.png',
-      title: 'Discover Your Awe',
-      subtitle: 'Find the trips, stories, and places that make you feel alive.',
+      title: 'One Wonder, Every Day',
+      subtitle: 'A hidden story from somewhere in the world — delivered fresh each morning.',
     ),
     _OnbPage(
       imagePath: 'assets/images/onboarding2.png',
-      title: 'AI Crafted Itineraries',
-      subtitle: 'Get clean, simple itineraries crafted uniquely for your travel style.',
+      title: 'Your Atlas Grows',
+      subtitle: 'Every wonder you like pins a new place on your personal globe.',
     ),
     _OnbPage(
       imagePath: 'assets/images/onboarding3.png',
-      title: 'Start Your Quests',
-      subtitle: "Take on micro-adventures, complete travel challenges, and unlock new experiences.",
+      title: 'Unearth Collections',
+      subtitle: 'Dive deeper into curated sets — from lost cities to sounds nobody expected.',
     ),
   ];
 
   void _next() {
     if (_index < _pages.length - 1) {
-      _controller.nextPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
+      _controller.nextPage(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
     } else {
       widget.onFinished?.call();
     }
@@ -43,32 +46,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: FlowColors.primaryDark,
+      backgroundColor: AweColors.background,
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: Stack(
                 children: [
-                  // Subtle gradient header accent
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              FlowColors.primaryDarkDeep.withValues(alpha: 0.9),
-                              FlowColors.primaryDark,
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                   PageView.builder(
                     controller: _controller,
                     itemCount: _pages.length,
@@ -80,14 +65,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     right: 16,
                     child: TextButton(
                       onPressed: widget.onFinished,
-                      child: Text('Skip', style: GoogleFonts.raleway(color: FlowColors.paleBlue, fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Skip',
+                        style: GoogleFonts.sourceSans3(
+                          color: AweColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 8),
-            // Dots indicator
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(_pages.length, (i) {
@@ -98,7 +88,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   height: 8,
                   width: active ? 20 : 8,
                   decoration: BoxDecoration(
-                    color: active ? FlowColors.softTealLight : Colors.white.withValues(alpha: 0.25),
+                    color: active
+                        ? AweColors.accentTerracotta
+                        : AweColors.border,
                     borderRadius: BorderRadius.circular(12),
                   ),
                 );
@@ -109,7 +101,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: CtaButton(
                 label: _index == _pages.length - 1 ? 'Get Started' : 'Next',
                 onPressed: _next,
-                //leadingIcon: _index == _pages.length - 1 ? Icons.rocket_launch_outlined : Icons.arrow_forward_rounded,
               ),
             ),
           ],
@@ -120,14 +111,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 class _OnbPage extends StatelessWidget {
-  const _OnbPage({required this.imagePath, required this.title, required this.subtitle});
+  const _OnbPage({
+    required this.imagePath,
+    required this.title,
+    required this.subtitle,
+  });
   final String imagePath;
   final String title;
   final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28.0),
       child: Column(
@@ -135,33 +129,25 @@ class _OnbPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const SizedBox(height: 32),
-          // Hero icon in soft card
-          Image.asset(imagePath),
-          // Container(
-          //   height: 180,
-          //   width: double.infinity,
-          //   decoration: BoxDecoration(
-          //     color: FlowColors.cardSurfaceDark,
-          //     borderRadius: BorderRadius.circular(24),
-          //     border: Border.all(color: FlowColors.cardBorderDark.withValues(alpha: 0.06)),
-          //   ),
-          //   child: Center(
-          //     child: Icon(icon, size: 88, color: FlowColors.softTealLight),
-          //   ),
-          // ),
+          ColorFiltered(
+            colorFilter: const ColorFilter.mode(
+              AweColors.accentSlate,
+              BlendMode.srcIn,
+            ),
+            child: Image.asset(imagePath),
+          ),
           const SizedBox(height: 28),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: FlowColors.textLight),
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 10),
-          Opacity(
-            opacity: 0.85,
-            child: Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FlowColors.promoTextPaleBlue),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AweColors.textSecondary,
             ),
           ),
         ],

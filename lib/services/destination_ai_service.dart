@@ -6,11 +6,9 @@ class DestinationAIService {
   static final DestinationAIService _instance = DestinationAIService._();
   factory DestinationAIService() => _instance;
 
-  static const String _modelName = 'gemini-2.5-flash';
-  // Use only current models; Gemini 1.5 models are retired (Sep 24, 2025)
+  static const String _modelName = 'gemini-3.1-flash-lite';
   static const List<String> _fallbackModels = <String>[
-    'gemini-2.0-flash',
-    'gemini-2.0-pro',
+    'gemini-3.1-flash-lite',
   ];
 
   /// Generates a friendly, readable "About" description for a destination.

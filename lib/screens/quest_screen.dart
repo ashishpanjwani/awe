@@ -1,4 +1,17 @@
 import 'package:flutter/material.dart';
+
+// Quest feature is temporarily disabled.
+// To restore: uncomment the block below, re-add geolocator to pubspec.yaml,
+// and uncomment location_service_provider_mobile.dart.
+
+class QuestScreen extends StatelessWidget {
+  const QuestScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+/*
 import 'package:flutter/foundation.dart';
 import 'package:wanderwell/services/location_service.dart';
 import 'package:wanderwell/models/quest_models.dart';
@@ -125,10 +138,6 @@ class _QuestScreenState extends State<QuestScreen> {
                                         ?.copyWith(color: FlowColors.textLight),
                                   ),
                                 ),
-                                // TextButton(
-                                //   onPressed: _enableLocationAndRefresh,
-                                //   child: const Text('Enable'),
-                                // )
                               ],
                             ),
                           ),
@@ -929,3 +938,4 @@ Future<void> _showConfirmActionSheet(
     },
   );
 }
+*/

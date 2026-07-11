@@ -6,7 +6,7 @@ import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/foundation.dart';
 
 class ItineraryAIService {
-  static const String _modelName = 'gemini-2.5-flash';
+  static const String _modelName = 'gemini-3.1-flash-lite';
   static const String _paidBadge = r'$$';
 
   Future<Map<String, dynamic>> generateItinerary({
@@ -82,7 +82,7 @@ class ItineraryAIService {
     final days = endDate.difference(startDate).inDays + 1;
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
     final builderModel =
-        FirebaseAI.googleAI().generativeModel(model: 'gemini-2.5-flash-lite');
+        FirebaseAI.googleAI().generativeModel(model: 'gemini-3.1-flash-lite');
 
     void progress(String s) {
       debugPrint('[Architect&Builders] $s');

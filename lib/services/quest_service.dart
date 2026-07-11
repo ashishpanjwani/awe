@@ -6,8 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart' as fba;
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/foundation.dart';
 import 'package:wanderwell/models/quest_models.dart';
+import 'package:wanderwell/services/local_context_service.dart';
 import 'package:wanderwell/services/location_service.dart';
-import 'package:wanderwell/services/weather_service.dart';
 import 'package:wanderwell/utils/app_utils.dart';
 
 enum QuestEntryType { quest, microAdventure }
@@ -21,6 +21,7 @@ class _DailyContext {
   final String dayPart;
   final bool isWeekend;
   final String? weather;
+  final List<LocalBuzzItem> localBuzz;
 
   _DailyContext({
     required this.place,
@@ -30,6 +31,7 @@ class _DailyContext {
     required this.dayPart,
     required this.isWeekend,
     this.weather,
+    this.localBuzz = const [],
   });
 
   // 🎯 LATENCY FIX: Static method to fetch all context I/O in parallel
@@ -37,24 +39,20 @@ class _DailyContext {
     final now = DateTime.now();
 
     // 1. Start Location fetch immediately
-    final locFuture = LocationService().getCurrentLocationWithName(allowIpFallback: false);
-    
-    // Wait for Location to get coordinates
-    final loc = await locFuture;
-    
+    final loc = await LocationService().getCurrentLocationWithName(allowIpFallback: false);
+
     final place = loc?.name ?? 'your area';
     final lat = loc?.lat;
     final lon = loc?.lon;
 
-    // 2. Start Weather fetch (which must follow location)
+    // 2. Fetch weather and local buzz in parallel
     String? weather;
+    List<LocalBuzzItem> localBuzz = [];
+
     if (lat != null && lon != null) {
-      try {
-        final w = await WeatherService().fetchWeatherAt(lat, lon, cityName: place);
-        weather = w.condition; 
-      } catch (_) {
-        // Ignore weather on failure
-      }
+      localBuzz = await LocalContextService()
+          .fetchLocalBuzz(city: place)
+          .catchError((_) => <LocalBuzzItem>[]);
     }
 
     // 3. Compute time context synchronously (which is fast)
@@ -70,6 +68,7 @@ class _DailyContext {
       dayPart: dayPart,
       isWeekend: isWeekend,
       weather: weather,
+      localBuzz: localBuzz,
     );
   }
 }
@@ -83,7 +82,7 @@ class QuestService {
   final fba.FirebaseAuth _auth = fba.FirebaseAuth.instance;
 
   // Using the user's requested model, optimized for speed.
-  static const String _modelName = 'gemini-2.5-flash-lite'; 
+  static const String _modelName = 'gemini-3.1-flash-lite';
 
   /// Returns today's quests, generating and persisting if missing or for a new day.
   Future<DailyQuests?> getOrCreateToday() async {
@@ -323,14 +322,35 @@ class QuestService {
 
   Future<DailyQuests> _generateDailyAI({required _DailyContext context}) async {
     final nowKey = AppUtils.todayKey();
-    
-    print('Place: ${context.place} ${context.lat} ${context.lon}');
 
+    debugPrint('[QuestService] Generating for: ${context.place} ${context.lat},${context.lon} | buzz=${context.localBuzz.length}');
+
+    // Run quest (JSON mode + Reddit buzz) and micro-adventure (grounded) in parallel.
+    // Grounded micro falls back to the standard JSON path if it fails.
+    final results = await Future.wait([
+      _generateQuestFromDailyContext(context: context),
+      _generateMicroAIGrounded(context: context)
+          .catchError((e) {
+            debugPrint('[QuestService] Grounded micro failed, falling back: $e');
+            return _generateMicroAI(context: context);
+          }),
+    ]);
+
+    return DailyQuests(
+      dateKey: nowKey,
+      quest: results[0] as QuestOfTheMoment,
+      microAdventure: results[1] as MicroAdventure,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  /// Generates only the quest portion using the full daily prompt context (with Local Buzz).
+  Future<QuestOfTheMoment> _generateQuestFromDailyContext({
+    required _DailyContext context,
+  }) async {
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
-    
-    // Pass the context object to the prompt builder
-    final prompt = _buildDailyPrompt(context: context); 
-    
+    final prompt = _buildDailyPrompt(context: context);
+
     final resp = await model.generateContent(
       [Content.text(prompt)],
       generationConfig: GenerationConfig(
@@ -340,28 +360,14 @@ class QuestService {
     );
 
     final text = resp.text;
-    if (text == null || text.trim().isEmpty) {
-      throw Exception('Empty response from model');
-    }
-    final extracted = _extractFirstJsonObject(text);
-    final cleaned = _sanitizeJson(extracted);
-    final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
+    if (text == null || text.trim().isEmpty) throw Exception('Empty response from model');
 
-    final questJson = (decoded['quest'] ?? {}) as Map<String, dynamic>;
-    final microJson = (decoded['microAdventure'] ?? {}) as Map<String, dynamic>;
-    final quest = _questFromLLM(questJson, fallbackPlace: context.place);
-    final micro = _microFromLLM(microJson, fallbackPlace: context.place);
-
-    return DailyQuests(
-      dateKey: nowKey,
-      quest: quest,
-      microAdventure: micro,
-      createdAt: DateTime.now(),
-    );
+    final decoded = jsonDecode(_sanitizeJson(_extractFirstJsonObject(text))) as Map<String, dynamic>;
+    return _questFromLLM((decoded['quest'] ?? {}) as Map<String, dynamic>, fallbackPlace: context.place);
   }
 
   Future<QuestOfTheMoment> _generateQuestAI({required _DailyContext context, String? avoidTitle}) async {
-    print('Place: ${context.place} ${context.lat} ${context.lon}');
+    debugPrint('[QuestService] generateQuestAI: ${context.place} ${context.lat},${context.lon}');
 
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
     final prompt = _buildQuestOnlyPrompt(
@@ -398,7 +404,7 @@ class QuestService {
   }
 
   Future<MicroAdventure> _generateMicroAI({required _DailyContext context, String? avoidTitle}) async {
-    print('Place: ${context.place} ${context.lat} ${context.lon}');
+    debugPrint('[QuestService] generateMicroAI: ${context.place} ${context.lat},${context.lon}');
 
     final model = FirebaseAI.googleAI().generativeModel(model: _modelName);
     final prompt = _buildMicroOnlyPrompt(
@@ -432,24 +438,99 @@ class QuestService {
         avoidTitle: avoidTitle);
   }
 
+  /// Generates a micro-adventure using Gemini with Google Search grounding.
+  /// Falls back to [_generateMicroAI] if grounding fails or returns unparseable text.
+  Future<MicroAdventure> _generateMicroAIGrounded({
+    required _DailyContext context,
+    String? avoidTitle,
+  }) async {
+    // Tool.googleSearch() is incompatible with responseMimeType: 'application/json',
+    // so we use a free-text prompt and parse the structured response ourselves.
+    final model = FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-3.1-flash-lite',
+      tools: [Tool.googleSearch()],
+    );
+
+    final avoid = (avoidTitle == null || avoidTitle.trim().isEmpty)
+        ? ''
+        : '\nDo not suggest anything similar to: "$avoidTitle".';
+    final wx = context.weather != null ? ', weather: ${context.weather}' : '';
+    final prompt = '''
+You are a local guide for ${context.place}. Search for what is actually happening in ${context.place} right now — local events, new openings, pop-up markets, seasonal activities, trending spots — for ${context.season} ${context.dayPart}$wx.
+
+Based on your search, suggest ONE specific 1-hour micro-adventure. Reference real places or events by name if you find them.
+
+Respond in EXACTLY this format (no JSON, no markdown, no extra text):
+TITLE: [a concrete activity title, ideally referencing a real place or event]
+DESCRIPTION: [Exactly 2 sentences. First: what to do and where. Second: the goal or experience.]
+
+Keep it safe, low-cost or free, feasible in 60 minutes.$avoid
+''';
+
+    try {
+      final resp = await model.generateContent(
+        [Content.text(prompt)],
+        generationConfig: GenerationConfig(temperature: 0.8),
+      );
+      final text = resp.text ?? '';
+      if (text.trim().isEmpty) throw Exception('Empty grounded response');
+
+      final micro = _parseMicroFromFreeText(text, fallbackPlace: context.place);
+      if (avoidTitle != null && _isSimilarTitle(micro.title, avoidTitle)) {
+        // Similar to previous — return as-is rather than looping; the caller can retry
+        debugPrint('[QuestService] Grounded micro similar to previous, using anyway');
+      }
+      return micro;
+    } catch (e, st) {
+      debugPrint('[QuestService] _generateMicroAIGrounded failed: $e');
+      debugPrint('$st');
+      rethrow;
+    }
+  }
+
+  MicroAdventure _parseMicroFromFreeText(String text,
+      {required String fallbackPlace}) {
+    String title = '';
+    String description = '';
+
+    for (final line in text.split('\n').map((l) => l.trim())) {
+      if (line.startsWith('TITLE:')) {
+        title = line.replaceFirst('TITLE:', '').trim();
+      } else if (line.startsWith('DESCRIPTION:')) {
+        description = line.replaceFirst('DESCRIPTION:', '').trim();
+      }
+    }
+
+    final t = _tightTitle(title.isNotEmpty ? title : 'Golden Hour Walk');
+    final d = _trimToTwoSentences(
+      description.isNotEmpty
+          ? description
+          : 'Head to the main square in $fallbackPlace. Spend an hour exploring at your own pace.',
+    );
+    return MicroAdventure(title: t, description: d);
+  }
+
   // 🎯 REFINED PROMPT: Pushes for concrete experiential activities
   String _buildDailyPrompt({required _DailyContext context}) {
-    final locLine = (context.lat != null && context.lon != null) ? 
-        '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})' : '';
-    
-    final contextLine = 'Context: season=' +
-        context.season +
-        '; time=' +
-        context.dayPart +
-        '; ' +
-        (context.isWeekend ? 'weekend' : 'weekday') +
-        (context.weather != null ? '; weather=' + context.weather! : '') +
-        '.';
-        
-    // 🎯 NEW INSTRUCTION FOR AUTHENTICITY AND EXPERIENCE
-    final personalizationInstruction = '''
-    Personalization Rule: Use the location and coordinates to imagine a realistic local setting (e.g., typical architecture style, common regional activities, typical terrain like 'hilly neighborhood' or 'coastal trail'). Do NOT invent proper names. The "Experience Quest" MUST suggest a concrete, local activity type (e.g., a specific dish cooking class, a regional hiking trail, a local craft workshop) feasible today.
-    ''';
+    final locLine = (context.lat != null && context.lon != null)
+        ? '(${context.lat!.toStringAsFixed(2)},${context.lon!.toStringAsFixed(2)})'
+        : '';
+
+    final contextLine = 'Context: season=${context.season}; time=${context.dayPart}; '
+        '${context.isWeekend ? 'weekend' : 'weekday'}'
+        '${context.weather != null ? '; weather=${context.weather!}' : ''}.';
+
+    final hasBuzz = context.localBuzz.isNotEmpty;
+    final buzzSection = _buildBuzzSection(context.localBuzz);
+
+    final personalizationInstruction = hasBuzz
+        ? 'Personalization Rule: Use the Local Buzz below to reference SPECIFIC places, '
+            'events, or activities that locals are actually talking about. '
+            'You MAY use proper names for places or events from the Local Buzz. '
+            'At least one quest step or the micro-adventure MUST be grounded in something from Local Buzz.'
+        : 'Personalization Rule: Use the location and coordinates to imagine a realistic local setting '
+            '(e.g., typical architecture style, common regional activities, typical terrain). '
+            'Do NOT invent proper names. The micro-adventure MUST suggest a concrete local activity type feasible today.';
 
     return '''
 System instruction: You are a mindful, safety-conscious local guide. Output ONLY a JSON object with this schema and nothing else.
@@ -457,7 +538,7 @@ System instruction: You are a mindful, safety-conscious local guide. Output ONLY
 User request: In "${context.place}" $locLine. $contextLine Create a location-personalized daily quest (observation/reflection) and a distinct 1-hour **Experiential Quest** for today.
 
 $personalizationInstruction
-
+$buzzSection
 JSON schema to output exactly:
 {
   "quest": {
@@ -472,12 +553,29 @@ JSON schema to output exactly:
 }
 
 Rules:
-- Personalize with realistic, generic anchors (e.g., riverfront, main square, neighborhood park) based on what the area likely offers.
+- ${hasBuzz ? 'Ground at least one element in the Local Buzz. Reference the specific place or event by name if relevant.' : 'Personalize with realistic, generic anchors (e.g., riverfront, main square, neighborhood park) based on what the area likely offers.'}
 - **The 'quest' (observation) and 'microAdventure' (experience) must be completely distinct in theme.**
 - The 'microAdventure' MUST suggest a tangible **activity type** (e.g., cooking, hiking, crafting, viewing art, watching a regional film, etc.) and NOT just wandering.
-- Be practical for ${context.dayPart} and ${context.isWeekend ? 'weekend' : 'weekday'}${context.weather != null ? ' in ' + context.weather!.toLowerCase() : ''}; adapt to ${context.season}.
+- Be practical for ${context.dayPart} and ${context.isWeekend ? 'weekend' : 'weekday'}${context.weather != null ? ' in ${context.weather!.toLowerCase()}' : ''}; adapt to ${context.season}.
 - Keep language concise, friendly, and in English. No emojis, no markdown.
 ''';
+  }
+
+  /// Formats the local buzz items into a prompt section.
+  /// Returns an empty string if there are no items.
+  String _buildBuzzSection(List<LocalBuzzItem> items) {
+    if (items.isEmpty) return '';
+    final buf = StringBuffer('\nLOCAL BUZZ (what locals and Instagram are saying about this city right now):\n');
+    for (final item in items.take(6)) {
+      final tag = item.source == 'reddit' ? '[Community]' : '[Web]';
+      buf.write('- $tag ${item.title}');
+      if (item.snippet != null && item.snippet!.isNotEmpty) {
+        buf.write(': ${item.snippet}');
+      }
+      buf.writeln();
+    }
+    buf.writeln();
+    return buf.toString();
   }
 
   // 🎯 REFINED PROMPT: Pushes for concrete experiential activities

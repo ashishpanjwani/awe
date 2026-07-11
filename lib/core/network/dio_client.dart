@@ -12,7 +12,7 @@ class DioClient {
       receiveTimeout: const Duration(seconds: 12),
       sendTimeout: const Duration(seconds: 12),
       responseType: ResponseType.json,
-      headers: const {
+      headers: kIsWeb ? const {} : const {
         'Accept': 'application/json, text/plain, */*',
         'Cache-Control': 'no-cache',
       },

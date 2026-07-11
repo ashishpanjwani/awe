@@ -69,7 +69,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                         tag: 'dest-image-${d.id}',
                         child: d.imageUrl.startsWith('http')
                             ? Image.network(
-                                d.imageUrl,
+                                _safeImageUrl(d.imageUrl),
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     Container(
@@ -154,7 +154,8 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
 
                       const SizedBox(height: 16),
                       // About section + Trip Length selector
-                      BlocBuilder<DestinationDetailCubit, DestinationDetailState>(
+                      BlocBuilder<DestinationDetailCubit,
+                          DestinationDetailState>(
                         buildWhen: (p, n) =>
                             p.description != n.description ||
                             p.loadingDescription != n.loadingDescription ||
@@ -164,7 +165,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                           final aboutText = state.description.trim();
                           final paras = _splitIntoFriendlyParagraphs(aboutText);
 
-                            return Column(
+                          return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _Card(
@@ -173,52 +174,60 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                                   children: [
                                     const _SectionTitle(label: 'About'),
                                     const SizedBox(height: 8),
-                                      // Desired behavior:
-                                      // - Show AgenticSteps during loading
-                                      // - When steps are completed (aiStepIndex >= 4) but the text hasn't arrived yet (paras.isEmpty),
-                                      //   show BOTH the checked steps and the warming message together.
-                                      // - Once paragraphs arrive, show only the paragraphs.
-                                      Builder(builder: (context) {
-                                        final showSteps = state.loadingDescription ||
-                                            (state.aiStepIndex >= 4 && paras.isEmpty);
-                                        final showWarming = (state.aiStepIndex >= 4) && paras.isEmpty;
+                                    // Desired behavior:
+                                    // - Show AgenticSteps during loading
+                                    // - When steps are completed (aiStepIndex >= 4) but the text hasn't arrived yet (paras.isEmpty),
+                                    //   show BOTH the checked steps and the warming message together.
+                                    // - Once paragraphs arrive, show only the paragraphs.
+                                    Builder(builder: (context) {
+                                      final showSteps =
+                                          state.loadingDescription ||
+                                              (state.aiStepIndex >= 4 &&
+                                                  paras.isEmpty);
+                                      final showWarming =
+                                          (state.aiStepIndex >= 4) &&
+                                              paras.isEmpty;
 
-                                        if (paras.isNotEmpty) {
-                                          return Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              for (int i = 0; i < paras.length; i++) ...[
-                                                Text(
-                                                  paras[i],
-                                                  style: GoogleFonts.raleway(
-                                                      color: FlowColors.textLight,
-                                                      height: 1.5),
-                                                ),
-                                                if (i != paras.length - 1)
-                                                  const SizedBox(height: 8),
-                                              ]
-                                            ],
-                                          );
-                                        }
-
+                                      if (paras.isNotEmpty) {
                                         return Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            if (showSteps) ...[
-                                              AgenticSteps(
-                                                currentStep: state.aiStepIndex,
-                                              ),
-                                              const SizedBox(height: 12),
-                                            ],
-                                            if (showWarming)
+                                            for (int i = 0;
+                                                i < paras.length;
+                                                i++) ...[
                                               Text(
-                                                'Warming up the details…',
+                                                paras[i],
                                                 style: GoogleFonts.raleway(
-                                                    color: FlowColors.textGrey),
+                                                    color: FlowColors.textLight,
+                                                    height: 1.5),
                                               ),
+                                              if (i != paras.length - 1)
+                                                const SizedBox(height: 8),
+                                            ]
                                           ],
                                         );
-                                      }),
+                                      }
+
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (showSteps) ...[
+                                            AgenticSteps(
+                                              currentStep: state.aiStepIndex,
+                                            ),
+                                            const SizedBox(height: 12),
+                                          ],
+                                          if (showWarming)
+                                            Text(
+                                              'Warming up the details…',
+                                              style: GoogleFonts.raleway(
+                                                  color: FlowColors.textGrey),
+                                            ),
+                                        ],
+                                      );
+                                    }),
                                   ],
                                 ),
                               ),
@@ -231,8 +240,11 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                                     const SizedBox(height: 10),
                                     _DaysSelector(
                                       value: state.days,
-                                      onChanged: (v) => context.read<DestinationDetailCubit>().setDays(v),
-                                      hint: 'Typical: ${d.idealDays} day${d.idealDays == 1 ? '' : 's'}',
+                                      onChanged: (v) => context
+                                          .read<DestinationDetailCubit>()
+                                          .setDays(v),
+                                      hint:
+                                          'Typical: ${d.idealDays} day${d.idealDays == 1 ? '' : 's'}',
                                     ),
                                   ],
                                 ),
@@ -251,6 +263,15 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
         ));
   }
 
+  String _safeImageUrl(String url) {
+    if (!url.contains('unsplash.com')) return url;
+    final uri = Uri.parse(url);
+    final params = Map<String, String>.from(uri.queryParameters);
+    params.remove('auto'); // ← this is the key line, removes auto=format
+    params['fm'] = 'jpg'; // force JPEG
+    return uri.replace(queryParameters: params).toString();
+  }
+
   Widget _buildBottomBar(BuildContext context) {
     return SafeArea(
       top: false,
@@ -262,35 +283,38 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
               p.generatingItinerary != n.generatingItinerary ||
               p.loadingDescription != n.loadingDescription ||
               p.description != n.description,
-            builder: (context, state) {
-              final hasDescription = state.description.trim().isNotEmpty;
-              final canGenerate = !state.generatingItinerary && !state.loadingDescription && hasDescription;
+          builder: (context, state) {
+            final hasDescription = state.description.trim().isNotEmpty;
+            final canGenerate = !state.generatingItinerary &&
+                !state.loadingDescription &&
+                hasDescription;
 
-              if (state.generatingItinerary) {
-                return CtaButton(
-                  label: 'Generating…',
-                  onPressed: () {},
-                  loading: true,
-                );
-              }
-
-              // Always show the primary CTA. If tapped too early, show a snackbar.
+            if (state.generatingItinerary) {
               return CtaButton(
-                label: 'Generate Itinerary',
-                leadingIcon: Icons.auto_awesome,
-                onPressed: () {
-                  if (!canGenerate) {
-                    final messenger = ScaffoldMessenger.of(context);
-                    messenger.hideCurrentSnackBar();
-                    messenger.showSnackBar(const SnackBar(
-                      content: Text('Details are being generated. Please wait — then you can build your itinerary.'),
-                    ));
-                    return;
-                  }
-                  _onGenerate();
-                },
+                label: 'Generating…',
+                onPressed: () {},
+                loading: true,
               );
-            },
+            }
+
+            // Always show the primary CTA. If tapped too early, show a snackbar.
+            return CtaButton(
+              label: 'Generate Itinerary',
+              leadingIcon: Icons.auto_awesome,
+              onPressed: () {
+                if (!canGenerate) {
+                  final messenger = ScaffoldMessenger.of(context);
+                  messenger.hideCurrentSnackBar();
+                  messenger.showSnackBar(const SnackBar(
+                    content: Text(
+                        'Details are being generated. Please wait — then you can build your itinerary.'),
+                  ));
+                  return;
+                }
+                _onGenerate();
+              },
+            );
+          },
         ),
       ),
     );
@@ -300,7 +324,8 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
     final name = widget.destination.name;
     final now = DateTime.now();
     // Start tomorrow (season/festival awareness needs concrete dates)
-    final start = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final start =
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     final days = _cubit.state.days;
     final end = start.add(Duration(days: (days - 1).clamp(0, 365)));
 
@@ -324,13 +349,12 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
       dietaryPreference: null,
     );
 
-    debugPrint('[DestinationDetail] Pushing LoadingScreen for $name ($days days)');
+    debugPrint(
+        '[DestinationDetail] Pushing LoadingScreen for $name ($days days)');
 
-    Navigator.of(context)
-        .pushNamed('/loading', arguments: {
+    Navigator.of(context).pushNamed('/loading', arguments: {
       'generateTask': task,
-    })
-        .then((_) {
+    }).then((_) {
       if (mounted) _cubit.setGenerating(false);
     });
   }
@@ -339,7 +363,11 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
 // Split long text into short, readable paragraphs (2–3 sentences each, max ~3 paras)
 List<String> _splitIntoFriendlyParagraphs(String input) {
   if (input.isEmpty) return const [];
-  final normalized = input.replaceAll('\r', ' ').replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  final normalized = input
+      .replaceAll('\r', ' ')
+      .replaceAll('\n', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
   // Split by sentence enders while keeping them
   final parts = <String>[];
   final buffer = StringBuffer();
@@ -359,8 +387,10 @@ List<String> _splitIntoFriendlyParagraphs(String input) {
   final paras = <String>[];
   int idx = 0;
   while (idx < parts.length && paras.length < 3) {
-    final take = (parts.length - idx >= 3) ? 3 : ((parts.length - idx >= 2) ? 2 : 1);
-    final para = parts.sublist(idx, (idx + take).clamp(0, parts.length)).join(' ');
+    final take =
+        (parts.length - idx >= 3) ? 3 : ((parts.length - idx >= 2) ? 2 : 1);
+    final para =
+        parts.sublist(idx, (idx + take).clamp(0, parts.length)).join(' ');
     paras.add(para);
     idx += take;
   }
@@ -400,13 +430,47 @@ List<Widget> _buildReadableAbout(String input) {
   if (rest.isEmpty) return widgets;
 
   final tipsKw = <String>{
-    'tip', 'note', 'consider', 'keep in mind', 'before you go',
-    'avoid', 'crowd', 'busy', 'season', 'weather', 'peak', 'visa',
-    'currency', 'pass', 'etiquette', 'reservation', 'cash', 'card', 'safety',
+    'tip',
+    'note',
+    'consider',
+    'keep in mind',
+    'before you go',
+    'avoid',
+    'crowd',
+    'busy',
+    'season',
+    'weather',
+    'peak',
+    'visa',
+    'currency',
+    'pass',
+    'etiquette',
+    'reservation',
+    'cash',
+    'card',
+    'safety',
   };
   final foodKw = <String>{
-    'food', 'cuisine', 'eat', 'dining', 'restaurant', 'street food', 'tea', 'coffee', 'bar', 'drink', 'sake', 'wine', 'beer',
-    'market', 'stall', 'dish', 'flavor', 'taste', 'sweet', 'savory',
+    'food',
+    'cuisine',
+    'eat',
+    'dining',
+    'restaurant',
+    'street food',
+    'tea',
+    'coffee',
+    'bar',
+    'drink',
+    'sake',
+    'wine',
+    'beer',
+    'market',
+    'stall',
+    'dish',
+    'flavor',
+    'taste',
+    'sweet',
+    'savory',
   };
 
   final tips = <String>[];
@@ -433,7 +497,8 @@ List<Widget> _buildReadableAbout(String input) {
     widgets.add(const SizedBox(height: 12));
     widgets.add(const _SubTitle(label: 'Highlights'));
     widgets.add(const SizedBox(height: 6));
-    widgets.addAll(cappedHighlights.map((e) => _BulletRow(text: _bulletize(e))));
+    widgets
+        .addAll(cappedHighlights.map((e) => _BulletRow(text: _bulletize(e))));
   }
 
   if (cappedFood.isNotEmpty) {
@@ -493,7 +558,6 @@ String _bulletize(String sentence) {
   return s;
 }
 
-
 // Generic card wrapper to unify section styling
 class _Card extends StatelessWidget {
   final Widget child;
@@ -507,7 +571,8 @@ class _Card extends StatelessWidget {
       decoration: BoxDecoration(
         color: FlowColors.cardSurfaceDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
+        border: Border.all(
+            color: FlowColors.cardBorderDark.withValues(alpha: 0.12)),
       ),
       child: child,
     );
@@ -517,7 +582,8 @@ class _Card extends StatelessWidget {
 class WhyVisitSection extends StatelessWidget {
   final String destinationName;
   final String text;
-  const WhyVisitSection({super.key, required this.destinationName, required this.text});
+  const WhyVisitSection(
+      {super.key, required this.destinationName, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -529,7 +595,8 @@ class WhyVisitSection extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             text,
-            style: GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45),
+            style:
+                GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45),
           ),
         ],
       ),
@@ -564,7 +631,11 @@ class BreakdownSection extends StatelessWidget {
   final String geographyHistory;
   final String unique;
   final String experience;
-  const BreakdownSection({super.key, required this.geographyHistory, required this.unique, required this.experience});
+  const BreakdownSection(
+      {super.key,
+      required this.geographyHistory,
+      required this.unique,
+      required this.experience});
 
   @override
   Widget build(BuildContext context) {
@@ -576,15 +647,21 @@ class BreakdownSection extends StatelessWidget {
           const SizedBox(height: 10),
           const _SubTitle(label: 'Geography & History'),
           const SizedBox(height: 6),
-          Text(geographyHistory, style: GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45)),
+          Text(geographyHistory,
+              style: GoogleFonts.raleway(
+                  color: FlowColors.textLight, height: 1.45)),
           const SizedBox(height: 12),
           const _SubTitle(label: 'What Makes It Unique'),
           const SizedBox(height: 6),
-          Text(unique, style: GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45)),
+          Text(unique,
+              style: GoogleFonts.raleway(
+                  color: FlowColors.textLight, height: 1.45)),
           const SizedBox(height: 12),
           const _SubTitle(label: 'The Travel Experience'),
           const SizedBox(height: 6),
-          Text(experience, style: GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45)),
+          Text(experience,
+              style: GoogleFonts.raleway(
+                  color: FlowColors.textLight, height: 1.45)),
         ],
       ),
     );
@@ -647,7 +724,9 @@ class IdealDurationSection extends StatelessWidget {
         children: [
           const _SectionTitle(label: 'Ideal Trip Duration'),
           const SizedBox(height: 8),
-          Text(text, style: GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45)),
+          Text(text,
+              style: GoogleFonts.raleway(
+                  color: FlowColors.textLight, height: 1.45)),
         ],
       ),
     );
@@ -786,8 +865,8 @@ class _BulletRow extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style:
-                  GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45),
+              style: GoogleFonts.raleway(
+                  color: FlowColors.textLight, height: 1.45),
             ),
           ),
         ],
@@ -812,8 +891,8 @@ class _TipRow extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style:
-                  GoogleFonts.raleway(color: FlowColors.textLight, height: 1.45),
+              style: GoogleFonts.raleway(
+                  color: FlowColors.textLight, height: 1.45),
             ),
           ),
         ],
@@ -878,7 +957,8 @@ class AgenticSteps extends StatelessWidget {
   Widget _statusIcon(_StepStatus s) {
     switch (s) {
       case _StepStatus.done:
-        return const Icon(Icons.check_circle, size: 16, color: Colors.greenAccent);
+        return const Icon(Icons.check_circle,
+            size: 16, color: Colors.greenAccent);
       case _StepStatus.active:
         return const SizedBox(
           width: 16,
@@ -890,7 +970,8 @@ class AgenticSteps extends StatelessWidget {
         );
       case _StepStatus.pending:
       default:
-        return const Icon(Icons.radio_button_unchecked, size: 16, color: FlowColors.textGrey);
+        return const Icon(Icons.radio_button_unchecked,
+            size: 16, color: FlowColors.textGrey);
     }
   }
 }
@@ -908,8 +989,8 @@ class _Chip extends StatelessWidget {
       decoration: BoxDecoration(
         color: FlowColors.chipBgDark,
         borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: FlowColors.chipBorderDark.withValues(alpha: 0.14)),
+        border: Border.all(
+            color: FlowColors.chipBorderDark.withValues(alpha: 0.14)),
       ),
       child: Text(
         text,

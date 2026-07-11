@@ -15,7 +15,8 @@ class LocationService {
 
   final LocationServiceProvider _provider = LocationServiceProvider();
 
-  Future<({double lat, double lon, String name})?> getCurrentLocationWithName({bool allowIpFallback = true}) async {
+  Future<({double lat, double lon, String name})?> getCurrentLocationWithName(
+      {bool allowIpFallback = true}) async {
     try {
       final pos = await _provider.getCurrentPosition();
       if (pos != null) {
@@ -27,7 +28,8 @@ class LocationService {
       if (allowIpFallback) {
         final ipPos = await _ipGeolocate();
         if (ipPos != null) {
-          debugPrint('[LocationService] Using approximate IP-based location: ${ipPos.name}');
+          debugPrint(
+              '[LocationService] Using approximate IP-based location: ${ipPos.name}');
           return ipPos;
         }
       }
@@ -45,21 +47,25 @@ class LocationService {
     final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon&zoom=10&addressdetails=1');
     try {
-      final res = await http.get(uri, headers: {
-        'User-Agent': 'wanderwell-app/1.0 (https://example.com)'
-      });
+      final res = await http.get(uri,
+          headers: {'User-Agent': 'wanderwell-app/1.0 (https://example.com)'});
       if (res.statusCode != 200) {
         debugPrint('[LocationService] Nominatim HTTP ${res.statusCode}');
         return 'Current Location';
       }
-      final data = json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final data =
+          json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final addr = (data['address'] ?? {}) as Map<String, dynamic>;
-      final city = (addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['hamlet'] ?? '') as String;
+      final city = (addr['city'] ??
+          addr['town'] ??
+          addr['village'] ??
+          addr['county'] ??
+          addr['hamlet'] ??
+          '') as String;
       final state = (addr['state'] ?? '') as String;
-      final countryCode = (addr['country_code'] ?? '') as String; // lowercased
+      // final countryCode = (addr['country_code'] ?? '') as String; // lowercased
       final parts = [
         if (city.isNotEmpty) city,
-        if (countryCode.isNotEmpty) countryCode.toUpperCase(),
         if (city.isEmpty && state.isNotEmpty) state,
       ];
       return parts.isEmpty ? 'Current Location' : parts.join(', ');
@@ -77,19 +83,25 @@ class LocationService {
     // keep errors quiet to avoid noisy logs in restricted environments.
     try {
       final uri = Uri.parse('https://ipapi.co/json/');
-      final res = await http
-          .get(uri, headers: {
-            'User-Agent': 'wanderwell-app/1.0 (https://example.com)'
-          })
-          .timeout(const Duration(seconds: 5));
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'wanderwell-app/1.0 (https://example.com)'
+      }).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
-        final data = json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final data =
+            json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
         final city = (data['city'] ?? '') as String;
         final country = (data['country_code'] ?? '') as String;
-        final lat = (data['latitude'] is num) ? (data['latitude'] as num).toDouble() : null;
-        final lon = (data['longitude'] is num) ? (data['longitude'] as num).toDouble() : null;
+        final lat = (data['latitude'] is num)
+            ? (data['latitude'] as num).toDouble()
+            : null;
+        final lon = (data['longitude'] is num)
+            ? (data['longitude'] as num).toDouble()
+            : null;
         if (lat != null && lon != null) {
-          final labelParts = [if (city.isNotEmpty) city, if (country.isNotEmpty) country];
+          final labelParts = [
+            if (city.isNotEmpty) city,
+            if (country.isNotEmpty) country
+          ];
           final name = labelParts.isEmpty ? 'Your Area' : labelParts.join(', ');
           return (lat: lat, lon: lon, name: name);
         }
@@ -102,22 +114,25 @@ class LocationService {
     // { city: "", country: "US", loc: "37.3860,-122.0838" }
     try {
       final uri = Uri.parse('https://ipinfo.io/json');
-      final res = await http
-          .get(uri, headers: {
-            'User-Agent': 'wanderwell-app/1.0 (https://example.com)'
-          })
-          .timeout(const Duration(seconds: 5));
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'wanderwell-app/1.0 (https://example.com)'
+      }).timeout(const Duration(seconds: 5));
       if (res.statusCode != 200) return null;
-      final data = json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final data =
+          json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final city = (data['city'] ?? '') as String;
-      final country = (data['country'] ?? '') as String; // already uppercased usually
+      final country =
+          (data['country'] ?? '') as String; // already uppercased usually
       final loc = (data['loc'] ?? '') as String; // "lat,lon"
       final parts = loc.split(',');
       if (parts.length != 2) return null;
       final lat = double.tryParse(parts[0]);
       final lon = double.tryParse(parts[1]);
       if (lat == null || lon == null) return null;
-      final labelParts = [if (city.isNotEmpty) city, if (country.isNotEmpty) country];
+      final labelParts = [
+        if (city.isNotEmpty) city,
+        if (country.isNotEmpty) country
+      ];
       final name = labelParts.isEmpty ? 'Your Area' : labelParts.join(', ');
       return (lat: lat, lon: lon, name: name);
     } catch (e) {
@@ -127,9 +142,11 @@ class LocationService {
   }
 
   // Expose provider utilities cross-platform
-  Future<bool> isLocationServiceEnabled() => _provider.isLocationServiceEnabled();
+  Future<bool> isLocationServiceEnabled() =>
+      _provider.isLocationServiceEnabled();
 
-  Future<AppLocationPermission> getPermissionStatus({bool requestIfDenied = false}) =>
+  Future<AppLocationPermission> getPermissionStatus(
+          {bool requestIfDenied = false}) =>
       _provider.getPermissionStatus(requestIfDenied: requestIfDenied);
 
   Future<bool> openAppSettings() => _provider.openAppSettings();

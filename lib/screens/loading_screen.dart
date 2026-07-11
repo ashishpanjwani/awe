@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:wanderwell/theme.dart';
 
@@ -12,21 +13,15 @@ class LoadingScreen extends StatefulWidget {
     this.initialProgressText,
   });
 
-  // Optional generation future passed from the Builder screen.
   final Future<Map<String, dynamic>>? generateTask;
-  // Optional progress stream to show live agentic steps.
   final Stream<String>? progressStream;
-  // Initial progress line to render immediately (prevents missing the first event
-  // if the stream subscriber attaches slightly later after navigation).
   final String? initialProgressText;
 
   @override
   State<LoadingScreen> createState() => _LoadingScreenState();
 }
 
-class _LoadingScreenState extends State<LoadingScreen>
-    with SingleTickerProviderStateMixin {
-  // Rotating status lines (sync with illustrations)
+class _LoadingScreenState extends State<LoadingScreen> {
   final List<String> _lines = const [
     'Crafting your adventure…',
     'Charting the waves…',
@@ -43,22 +38,15 @@ class _LoadingScreenState extends State<LoadingScreen>
   void initState() {
     super.initState();
 
-    // rotate artwork and lines every 1 second per request
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      // If we have live progress from the generator, keep showing it and
-      // still tick the index for AnimatedSwitcher keys, but do not change
-      // the displayed phrase.
       setState(() => _index = (_index + 1) % _lines.length);
     });
 
-    // Prime the line with the initial text if provided.
-    if (widget.initialProgressText != null &&
-        widget.initialProgressText!.trim().isNotEmpty) {
+    if (widget.initialProgressText != null && widget.initialProgressText!.trim().isNotEmpty) {
       _liveLine = widget.initialProgressText;
     }
 
-    // Subscribe to progress stream if provided.
     if (widget.progressStream != null) {
       _sub = widget.progressStream!.listen((msg) {
         if (!mounted) return;
@@ -66,22 +54,16 @@ class _LoadingScreenState extends State<LoadingScreen>
       });
     }
 
-    // Kick off the generation if provided.
     final task = widget.generateTask;
     if (task != null) {
       task.then((data) {
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed(
-          '/itinerary_result',
-          arguments: data,
-        );
+        Navigator.of(context).pushReplacementNamed('/itinerary_result', arguments: data);
       }).catchError((e, st) {
         debugPrint('[LoadingScreen] Generation failed: $e');
         debugPrintStack(stackTrace: st);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Generation failed: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Generation failed: $e')));
         Navigator.of(context).pop();
       });
     }
@@ -97,7 +79,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FlowColors.primaryDark,
+      backgroundColor: AweColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -106,37 +88,28 @@ class _LoadingScreenState extends State<LoadingScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Lottie.asset('assets/animations/camping_car.json',
-                        repeat: true),
+                    Lottie.asset('assets/animations/camping_car.json', repeat: true),
+                    const SizedBox(height: 16),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 350),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder:
-                          (Widget child, Animation<double> animation) {
-                        // Subtle vertical slide (incoming from slightly below) + fade
+                      transitionBuilder: (Widget child, Animation<double> animation) {
                         final slideAnim = Tween<Offset>(
-                          begin: const Offset(0, 0.10), // small movement
+                          begin: const Offset(0, 0.10),
                           end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                            parent: animation, curve: Curves.easeOutCubic));
-
+                        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
                         return FadeTransition(
                           opacity: animation,
-                          child: SlideTransition(
-                              position: slideAnim, child: child),
+                          child: SlideTransition(position: slideAnim, child: child),
                         );
                       },
                       child: Text(
                         _liveLine ?? _lines[_index],
-                        // Key by the actual text so the switcher updates immediately
-                        // when the live progress line changes.
                         key: ValueKey<String>(_liveLine ?? _lines[_index]),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: FlowColors
-                              .paleBlue, // keep your `accent` or `stroke`
+                        style: GoogleFonts.dmSerifDisplay(
+                          fontSize: 18,
+                          color: AweColors.accentTeal,
                         ),
                         textAlign: TextAlign.center,
                         maxLines: 1,
@@ -147,31 +120,26 @@ class _LoadingScreenState extends State<LoadingScreen>
                 ),
               ),
             ),
-
-            // 2. Static Message at the Bottom
             Container(
               alignment: Alignment.center,
-              padding:
-                  const EdgeInsets.only(bottom: 24.0, left: 24.0, right: 24.0),
+              padding: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Almost there!',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: FlowColors.textLight,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 18,
+                      color: AweColors.textPrimary,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     'This may take a little while. Thanks for hanging tight.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: FlowColors.textLight.withOpacity(0.7),
+                    style: GoogleFonts.sourceSans3(
+                      fontSize: 13,
+                      color: AweColors.textSecondary,
                     ),
                     textAlign: TextAlign.center,
                   ),
