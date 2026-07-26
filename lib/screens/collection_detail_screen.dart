@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -49,13 +51,36 @@ class CollectionDetailScreen extends StatelessWidget {
   }
 }
 
-class _DetailContent extends StatelessWidget {
+class _DetailContent extends StatefulWidget {
   final WonderCollection collection;
   final List<Wonder> wonders;
   const _DetailContent({required this.collection, required this.wonders});
 
   @override
+  State<_DetailContent> createState() => _DetailContentState();
+}
+
+class _DetailContentState extends State<_DetailContent> {
+  StreamSubscription<bool>? _premiumSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _premiumSub = PremiumService().onPremiumActivated.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _premiumSub?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final collection = widget.collection;
+    final wonders = widget.wonders;
     final category = WonderCategory.fromString(collection.category);
 
     return CustomScrollView(

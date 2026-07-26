@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -30,11 +32,21 @@ class _LibraryTabScreenState extends State<LibraryTabScreen> {
   List<Wonder> _trail = [];
   List<WonderCollection> _collections = [];
   bool _loading = true;
+  StreamSubscription<bool>? _premiumSub;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _premiumSub = PremiumService().onPremiumActivated.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _premiumSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {

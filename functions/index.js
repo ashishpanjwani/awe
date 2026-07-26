@@ -63,7 +63,7 @@ exports.generateDailyWonder = onSchedule(
       let wonder, embedding, checked;
       let avoidHint = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
-        wonder = await generateWonder(collectionTitles, key, avoidHint, pickTitleFormat());
+        wonder = await generateWonder(collectionTitles, key, avoidHint, pickTitleFormat(), pickCategory(), pickEmotion());
         embedding = await getEmbedding(
           `${wonder.title}. ${wonder.subtitle}. ${wonder.curiositySpark}. ${(wonder.tags || []).join(", ")}`
         );
@@ -119,11 +119,14 @@ exports.generateDailyWonder = onSchedule(
 // ── Wonder generation via Vertex AI ───────────────────────────────────────
 
 const _TITLE_FORMATS = ['A', 'B', 'C', 'D', 'E', 'F'];
-function pickTitleFormat() {
-  return _TITLE_FORMATS[Math.floor(Math.random() * _TITLE_FORMATS.length)];
-}
+const _CATEGORIES = ['place', 'tradition', 'taste', 'story', 'sound', 'person'];
+const _EMOTIONS = ['awe', 'mystery', 'serenity', 'lost_worlds', 'sacred', 'wild'];
 
-async function generateWonder(collectionTitles, dateKey, avoidHint = null, titleFormat = pickTitleFormat()) {
+function pickTitleFormat() { return _TITLE_FORMATS[Math.floor(Math.random() * _TITLE_FORMATS.length)]; }
+function pickCategory() { return _CATEGORIES[Math.floor(Math.random() * _CATEGORIES.length)]; }
+function pickEmotion() { return _EMOTIONS[Math.floor(Math.random() * _EMOTIONS.length)]; }
+
+async function generateWonder(collectionTitles, dateKey, avoidHint = null, titleFormat = pickTitleFormat(), category = pickCategory(), emotion = pickEmotion()) {
   const ai = getAI();
 
   const avoidTopics = collectionTitles.length ? collectionTitles.join(", ") : "None";
@@ -134,7 +137,8 @@ async function generateWonder(collectionTitles, dateKey, avoidHint = null, title
   const prompt = `System: You are a world-class travel storyteller. Generate ONE extraordinary daily wonder about the world. Write like a storyteller, not a guidebook. Surprise the reader with something they have never heard of.
 
 Rules:
-- Pick from these categories: place, tradition, taste, story, sound, person
+- The category MUST be '${category}' — write a wonder that genuinely fits this category
+- The emotion MUST be '${emotion}' — the story must evoke this specific feeling, not just default to wonder
 - Avoid these topics (reserved for premium collections): ${avoidTopics}
 ${hintLine}
 - The wonder MUST be tied to a specific real place on Earth (provide accurate lat/lon)
@@ -152,7 +156,7 @@ TITLE — you MUST use Format ${titleFormat} below. No other format is acceptabl
   C) A specific number or measurement that reframes everything (e.g., "432 Hertz", "Forty Thousand Years", "Seventeen Seconds")
   D) A question or provocation (e.g., "Why Does This Lake Sing?", "Who Built This Road?")
   E) A person's name or a direct quote (e.g., "Salim Ali's Birds", "They Call It the Weeping Wall")
-  F) A place name + unexpected juxtaposition (e.g., "Tokyo's Last Rice Farmer", "Beneath Mumbai")
+  F) A place name + unexpected juxtaposition (e.g., "Tokyo's Last Rice Farmer", "Mumbai Keeps One Field")
 Your title MUST follow Format ${titleFormat}. Never use "The [Adjective/Participle] [Noun] of [Abstract/Place]".
 
 SUBTITLE — one sentence that earns its place. Must NOT start with "Where" or "When". Options:
@@ -162,7 +166,7 @@ SUBTITLE — one sentence that earns its place. Must NOT start with "Where" or "
   - A specific detail that raises a question ("Locals avoid it after dark — and geologists now understand why")
   - The local name with a translation ("The Inuit call it Siku. The ice that thinks.")
 
-Emotion must be one of: awe, mystery, serenity, lost_worlds, sacred, wild
+The emotion field MUST be '${emotion}'.
 
 Output ONLY this JSON:
 {
@@ -442,7 +446,7 @@ async function findSemanticConflict(wonder, embedding) {
         }
       }
     } catch (e) {
-      console.warn(`[SemanticConflict] ${collName} check failed (non-fatal):`, e.message);
+      console.error(`[SemanticConflict] ${collName} check FAILED — semantic guard skipped:`, e.message, e.stack);
     }
   }
   return null;
@@ -581,7 +585,9 @@ exports.generateCollectionWonders = onCall(
               colDescription,
               [...usedTitles],
               avoidHint,
-              pickTitleFormat()
+              pickTitleFormat(),
+              pickCategory(),
+              pickEmotion()
             );
           } catch (e) {
             console.warn(`[CollGen] Generation error attempt ${attempt}:`, e.message);
@@ -669,7 +675,7 @@ exports.generateCollectionWonders = onCall(
   }
 );
 
-async function generateCollectionWonder(collectionTitle, collectionDescription, avoidTitles, avoidHint = null, titleFormat = pickTitleFormat()) {
+async function generateCollectionWonder(collectionTitle, collectionDescription, avoidTitles, avoidHint = null, titleFormat = pickTitleFormat(), category = pickCategory(), emotion = pickEmotion()) {
   const ai = getAI();
   const avoidLine = avoidTitles.length ? avoidTitles.join("; ") : "None";
   const hintLine = avoidHint
@@ -684,7 +690,8 @@ Generate ONE extraordinary wonder that fits this collection's theme perfectly. W
 
 Rules:
 - The wonder MUST perfectly match the collection theme: "${collectionTitle}"
-- Pick from these categories: place, tradition, taste, story, sound, person
+- The category MUST be '${category}' — write a wonder that genuinely fits this category
+- The emotion MUST be '${emotion}' — the story must evoke this specific feeling, not just default to wonder
 - Do NOT repeat or closely paraphrase any of these existing stories: ${avoidLine}
 ${hintLine}
 - The wonder MUST be tied to a specific real place on Earth (provide accurate lat/lon)
@@ -702,7 +709,7 @@ TITLE — you MUST use Format ${titleFormat} below. No other format is acceptabl
   C) A specific number or measurement (e.g., "432 Hertz", "Forty Thousand Years", "Seventeen Seconds")
   D) A question or provocation (e.g., "Why Does This Lake Sing?", "Who Built This Road?")
   E) A person's name or direct quote (e.g., "Salim Ali's Birds", "They Call It the Weeping Wall")
-  F) A place + unexpected juxtaposition (e.g., "Tokyo's Last Rice Farmer", "Beneath Mumbai")
+  F) A place + unexpected juxtaposition (e.g., "Tokyo's Last Rice Farmer", "Mumbai Keeps One Field")
 Your title MUST follow Format ${titleFormat}. Never use "The [Adjective/Participle] [Noun] of [Abstract/Place]".
 
 SUBTITLE — one sentence that earns its place. Must NOT start with "Where" or "When". Options:
@@ -712,7 +719,7 @@ SUBTITLE — one sentence that earns its place. Must NOT start with "Where" or "
   - A specific detail that raises a question ("Locals avoid it after dark — and geologists now understand why")
   - The local name with a translation ("The Inuit call it Siku. The ice that thinks.")
 
-Emotion must be one of: awe, mystery, serenity, lost_worlds, sacred, wild
+The emotion field MUST be '${emotion}'.
 
 Output ONLY this JSON:
 {
